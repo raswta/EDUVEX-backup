@@ -1,63 +1,35 @@
-// sw.js - EDUVEX: notifications, offline support
-const CACHE = 'eduvex-v8';
+import { createClient } from "npm:@supabase/supabase-js@2";
+import webpush from "npm:web-push@3.6.7";
 
-self.addEventListener('install', () => self.skipWaiting());
+webpush.setVapidDetails(
+  "https://linktr.ee/Raswta",
+  Deno.env.get("VAPID_PUBLIC"),
+  Deno.env.get("VAPID_PRIVATE")
+);
+const sb = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  const r = event.request, u = new URL(r.url);
-  if (r.method !== 'GET' || u.hostname.endsWith('supabase.co')) return;
-  if (u.origin !== location.origin) {
-    event.respondWith(caches.match(r).then(hit => hit || fetch(r).then(res => {
-      const c = res.clone(); caches.open(CACHE).then(x => x.put(r, c)); return res;
-    })));
-    return;
+Deno.serve(async () => {
+  const now = new Date();
+  const { data: jobs } = await sb.from("push_jobs").select("*").eq("sent", false).lte("fire_at", now.toISOString());
+  let sent = 0;
+  for (const j of jobs || []) {
+    const { data: claimed } = await sb.from("push_jobs").update({ sent: true }).eq("id", j.id).eq("sent", false).select();
+    if (!claimed || !claimed.length) continue;
+    const { data: subs } = await sb.from("push_subs").select("*").eq("user_id", j.user_id);
+    for (const s of subs || []) {
+      try {
+        await webpush.sendNotification(s.sub, JSON.stringify({
+          title: "EDUVEX",
+          body: `Your stopwatch has been running for ${j.minutes} minutes!`,
+          tag: `ev-alert-${j.minutes}`
+        }));
+        sent++;
+      } catch (e) {
+        if (e.statusCode === 404 || e.statusCode === 410) await sb.from("push_subs").delete().eq("endpoint", s.endpoint);
+        console.error("push failed", e.statusCode, e.body);
+      }
+    }
   }
-  event.respondWith(fetch(r, { cache: 'no-cache' }).then(res => {
-    const c = res.clone(); caches.open(CACHE).then(x => x.put(r, c)); return res;
-  }).catch(() => caches.match(r)));
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true })
-    .then(l => l.length ? l[0].focus() : clients.openWindow('./')));
-});
-
-// Reminders sent from the server (work even when the app is closed)
-self.addEventListener('push', (event) => {
-  let d = {};
-  try { d = event.data ? event.data.json() : {}; } catch (e) {}
-  event.waitUntil(self.registration.showNotification(d.title || 'EDUVEX', {
-    body: d.body || 'Your stopwatch is still running.',
-    icon: 'icon.png',
-    badge: 'icon.png',
-    tag: d.tag || 'eduvex-alert'
-  }));
-});
-
-// Handle incoming notification requests from index.html
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'START_STOPWATCH_NOTIFICATION') {
-    const subject = event.data.subject || 'Study Session';
-    self.registration.showNotification('EDUVEX - Session in Progress', {
-      body: `Currently studying: ${subject}. Keep focusing!`,
-      icon: 'icon.png',
-      badge: 'icon.png',
-      tag: 'eduvex-stopwatch',
-      renotify: true,
-      requireInteraction: true
-    });
-  } else if (event.data && event.data.type === 'STOP_STOPWATCH_NOTIFICATION') {
-    self.registration.getNotifications({ tag: 'eduvex-stopwatch' }).then((notifications) => {
-      notifications.forEach((notification) => notification.close());
-    });
-  }
+  await sb.from("push_jobs").delete().eq("sent", true).lt("fire_at", new Date(now.getTime() - 86400000).toISOString());
+  return new Response(JSON.stringify({ sent }), { headers: { "Content-Type": "application/json" } });
 });
