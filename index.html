@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261116-2">
+<meta name="build" content="20261117-1">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -837,12 +837,13 @@ async function remotePush(fin) {
   if (!user || !navigator.onLine) return;
   const st = fin ? { finished: true, id: fin } : LS('ev_timer', null); if (!st) return;
   remAt = Date.now();
-  try { await sb.from('live_timer').upsert({ user_id: user.id, state: st, updated_at: new Date(remAt).toISOString() }, { onConflict: 'user_id' }); } catch (e) {}
+  try { const r = await sb.from('live_timer').upsert({ user_id: user.id, state: st, updated_at: new Date(remAt).toISOString() }, { onConflict: 'user_id' }); if (r.error) console.error('live_timer push', r.error); } catch (e) { console.error(e); }
 }
 async function remotePull() {
   if (!user || !navigator.onLine) return;
   try {
-    const { data } = await sb.from('live_timer').select('state,updated_at').eq('user_id', user.id).maybeSingle();
+    const { data, error } = await sb.from('live_timer').select('state,updated_at').eq('user_id', user.id).maybeSingle();
+    if (error) console.error('live_timer pull', error);
     if (!data || !data.state) return;
     const st = data.state, t = new Date(data.updated_at).getTime();
     if (t <= remAt + 1500) return; remAt = t;
