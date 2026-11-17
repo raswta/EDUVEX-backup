@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-1">
+<meta name="build" content="20261117-2">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -101,6 +101,11 @@ body{font-family:Inter,system-ui,sans-serif}
     <span id="streakNum" class="text-lg font-bold leading-tight mt-1">0</span>
     <span class="text-[10px] text-slate-400 -mt-0.5">days</span>
   </button>
+  </div>
+
+  <div id="remBar" class="hidden card !p-3 flex items-center justify-between gap-3 border-blue-500/40">
+    <div class="min-w-0"><div class="text-[10px] text-blue-300"><i class="fa-solid fa-mobile-screen mr-1"></i> Stopwatch on another device</div><div class="flex items-baseline gap-2"><span id="remTime" class="font-mono text-xl font-bold">00:00:00</span><span id="remSub" class="text-[11px] text-slate-400 truncate"></span></div></div>
+    <div class="flex gap-2 shrink-0"><button id="remPause" onclick="remToggle()" class="btn bg-blue-600 hover:bg-blue-500 !py-1.5 !px-3 text-xs"></button><button onclick="remFinish()" class="btn bg-emerald-600 hover:bg-emerald-500 !py-1.5 !px-3 text-xs"><i class="fa-solid fa-check mr-1"></i> Finish</button></div>
   </div>
 
   <div class="flex overflow-x-auto gap-2 border-b border-slate-800 pb-2">
@@ -832,27 +837,62 @@ function persist() {
   if (!running && base === 0) return localStorage.removeItem('ev_timer');
   localStorage.setItem('ev_timer', JSON.stringify({ id: runId, running, base, lastTick, subject: curSub, segs, tops, pres: presenceSecs }));
 }
-let remAt = 0;
+let remAt = 0, remote = null;
+const DEV = localStorage.getItem('ev_dev') || (() => { const d = Math.random().toString(36).slice(2, 10); localStorage.setItem('ev_dev', d); return d; })();
+async function remoteWrite(st) {
+  remAt = Date.now(); st.dev = DEV;
+  try { const r = await sb.from('live_timer').upsert({ user_id: user.id, state: st, updated_at: new Date(remAt).toISOString() }, { onConflict: 'user_id' }); if (r.error) console.error('live_timer push', r.error); } catch (e) { console.error(e); }
+}
 async function remotePush(fin) {
   if (!user || !navigator.onLine) return;
   const st = fin ? { finished: true, id: fin } : LS('ev_timer', null); if (!st) return;
-  remAt = Date.now();
-  try { const r = await sb.from('live_timer').upsert({ user_id: user.id, state: st, updated_at: new Date(remAt).toISOString() }, { onConflict: 'user_id' }); if (r.error) console.error('live_timer push', r.error); } catch (e) { console.error(e); }
+  await remoteWrite({ ...st });
 }
 async function remotePull() {
   if (!user || !navigator.onLine) return;
   try {
     const { data, error } = await sb.from('live_timer').select('state,updated_at').eq('user_id', user.id).maybeSingle();
     if (error) console.error('live_timer pull', error);
-    if (!data || !data.state) return;
+    if (!data || !data.state) { remote = null; return remBar(); }
     const st = data.state, t = new Date(data.updated_at).getTime();
-    if (t <= remAt + 1500) return; remAt = t;
-    if (st.finished) { if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); refresh(); } return; }
-    if (st.id && st.id === localStorage.getItem('ev_timer_done')) return;
-    clearInterval(tInt); running = false; base = 0; segs = {}; tops = {}; alerted = {};
-    localStorage.setItem('ev_timer', JSON.stringify(st)); restoreTimer(); persist();
-  } catch (e) {}
+    if (st.dev === DEV) { remote = null; return remBar(); }                 // my own write
+    if (st.finished) { remote = null; if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); refresh(); } return remBar(); }
+    if (st.id && st.id === localStorage.getItem('ev_timer_done')) { remote = null; return remBar(); }
+    if (runId && runId === st.id) {                                        // another device paused/resumed MY run: follow it
+      if (t <= remAt + 1500) return; remAt = t;
+      clearInterval(tInt); running = false; base = 0; segs = {}; tops = {}; alerted = {};
+      localStorage.setItem('ev_timer', JSON.stringify(st)); restoreTimer(); persist(); remote = null; return remBar();
+    }
+    remote = (running || base > 0) ? null : st; remBar();                   // a run on another device: show the control bar
+  } catch (e) { console.error(e); }
 }
+function remNow(st) {
+  const gap = st.running ? Math.max(0, Math.floor((Date.now() - st.lastTick) / 1000)) : 0, sg = { ...(st.segs || {}) };
+  if (gap) sg[st.subject] = (sg[st.subject] || 0) + gap;
+  return { base: (st.base || 0) + gap, segs: sg };
+}
+function remBar() {
+  const el = $('remBar'); if (!el) return;
+  if (!remote || (remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) { el.classList.add('hidden'); return; }
+  const n = remNow(remote), h = Math.floor(n.base / 3600), m = Math.floor(n.base % 3600 / 60), sc = n.base % 60;
+  $('remTime').textContent = [h, m, sc].map(x => String(x).padStart(2, '0')).join(':');
+  $('remSub').textContent = (remote.subject || 'Study') + (remote.running ? ' · running' : ' · paused');
+  $('remPause').innerHTML = remote.running ? '<i class="fa-solid fa-pause mr-1"></i> Pause' : '<i class="fa-solid fa-play mr-1"></i> Resume';
+  el.classList.remove('hidden');
+}
+async function remToggle() {
+  if (!remote) return; const n = remNow(remote);
+  remote = { ...remote, base: n.base, segs: n.segs, lastTick: Date.now(), running: !remote.running };
+  await remoteWrite({ ...remote }); remBar();
+}
+async function remFinish() {
+  if (!remote || !confirm('Finish & save the stopwatch running on your other device?')) return;
+  const n = remNow(remote), st = remote, tp = st.tops || {}; remote = null; remBar();
+  for (const [subject, secs] of Object.entries(n.segs))
+    if (secs >= 15) await save('study_sessions', { subject, duration_minutes: Math.max(1, Math.round(secs / 60)), type: 'stopwatch', created_at: new Date().toISOString(), ...(tp[subject] ? { topic: tp[subject] } : {}) });
+  await remotePush(st.id); refresh();
+}
+setInterval(remBar, 1000);
 function abandon() {
   clearInterval(tInt); running = false; askOpen = false; presenceSecs = 0; modal('presence', 0); base = 0; segs = {}; tops = {}; runId = null; pLeft = 0; pState = 'study'; alerted = {};
   $('swTopic').value = '';
