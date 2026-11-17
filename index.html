@@ -307,6 +307,7 @@ body{font-family:Inter,system-ui,sans-serif}
   <div class="py-2 flex justify-center"><img id="streakBig" src="streak/angry.png" class="w-24 h-24 object-contain" alt=""></div>
   <div><span id="streakCount" class="text-4xl font-bold">0</span> <span class="text-slate-400">day streak</span></div>
   <p id="streakNote" class="text-xs text-slate-300"></p>
+  <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 text-[11px] text-amber-300 text-left"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Warning:</b> a day counts for your streak only if you study <b>more than 3 hours</b> (stopwatch time). After a 15-day streak you need <b>more than 5 hours</b> a day. Your weekly classes are added to that time, but manual entries never count.</div>
   <div class="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-2.5 text-[11px] text-emerald-300">
     <i class="fa-solid fa-medal mr-1"></i> <b>30 Days Perk:</b> Unlocks manual join/leave room controls!
   </div>
@@ -406,7 +407,7 @@ body{font-family:Inter,system-ui,sans-serif}
   <a href="https://t.me/EDUVEXtut" target="_blank" rel="noopener" class="block text-center rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 py-2 font-semibold hover:bg-blue-600/30"><i class="fa-solid fa-images mr-1"></i> Illustrated step-by-step guide (with pictures): t.me/EDUVEXtut</a>
   <p><b><i class="fa-solid fa-bullseye text-blue-400 mr-1"></i> Goal bar:</b> choose Daily or Weekly, type your target hours (12.5 means 12 hours 30 minutes) and press Save Goal. The bar counts your study sessions plus your weekly classes.</p>
   <p><b><i class="fa-solid fa-fire text-orange-400 mr-1"></i> Streak:</b> the character next to the goal bar counts your days in a row. It is angry until you start studying today, and it glows when you reach your daily goal. Tap it to choose a weekly day off that never breaks your streak.</p>
-  <p><b><i class="fa-solid fa-face-smile text-orange-400 mr-1"></i> Streak character:</b> the character shows your level. Angry: you have not started studying today (with any streak). Calm: you started today and have a 1-9 day streak. Sparkle: 10 days. Black graduation cap: 30 days. Red graduation cap: 60 days. Tap it to see all levels.</p>
+  <p><b><i class="fa-solid fa-face-smile text-orange-400 mr-1"></i> Streak character:</b> the character shows your level. Angry: you have not started studying today (with any streak). Calm: you started today and have a 1-14 day streak. Sparkle: 15 days. Black graduation cap: 30 days. Red graduation cap: 60 days. Tap it to see all levels.</p>
   <p><b><i class="fa-solid fa-ranking-star text-amber-400 mr-1"></i> Leaderboard:</b> in the Study Room tab, everyone is ranked by streak (most days first), with their username, streak and level character. You are hidden by default. Press Show me to appear there, and Hide me to leave again.</p>
   <p><b><i class="fa-solid fa-stopwatch text-blue-400 mr-1"></i> Timer:</b> pick a subject and press Start. To study another subject, press Pause, choose the new subject and press Resume. The big clock keeps the total, and each subject is saved with its own time when you press Finish &amp; Save. Sessions shorter than 15 seconds are not saved. The stopwatch keeps going if you refresh the page.</p>
   <p><b><i class="fa-solid fa-user-clock text-blue-400 mr-1"></i> Still studying? check:</b> if the stopwatch runs for 3 hours without you touching the app, a popup asks whether you are still studying. Tap Yes within 10 minutes to keep going. If you do not, the stopwatch pauses and the waiting time is not counted. For very long sessions, use Focus mode so the screen stays on and you can answer.</p>
@@ -545,11 +546,20 @@ async function sync() {
   }
   setQ(rest);
 }
+let oldLoaded = false;
+const winStart = () => new Date(Date.now() - 35 * 864e5);   // study logs: only the last 35 days are read, older ones on demand
 async function rows(table) {
   const key = `ev_c_${user.id}_${table}`;
   let r = LS(key, []);                                   // last copy from the server (used when offline)
   if (navigator.onLine) {
-    const { data, error } = await sb.from(table).select('*').eq('user_id', user.id);
+    let data = [], error = null;
+    for (let i = 0; ; i += 1000) {                       // read page by page (the server returns max 1000 rows at once)
+      let q = sb.from(table).select('*').eq('user_id', user.id);
+      if (table === 'study_sessions' && !oldLoaded) q = q.gte('created_at', winStart().toISOString());
+      const r = await q.order('id').range(i, i + 999);
+      if (r.error) { error = r.error; break; }
+      data = data.concat(r.data || []); if ((r.data || []).length < 1000) break;
+    }
     if (error) console.error('load ' + table, error); else { r = data || []; localStorage.setItem(key, JSON.stringify(r)); }
   }
   const all = [...r, ...Q().filter(i => i.table === table && i.row.user_id === user.id).map(i => ({ ...i.row, _local: 1, _qi: Q().indexOf(i) }))];
@@ -722,22 +732,20 @@ function renderGoal() {
 // ---------- Streak ----------
 const restDay = () => { const v = localStorage.getItem('ev_restday'); return v === null || v === '' ? -1 : +v; };
 function fireState() {
-  const days = {}, todayKey = toYMD(new Date()), rest = restDay();
-  (D.days || []).forEach(r => { if ((+r.minutes || 0) > 0) days[r.day] = 1; });   // one small row per day (kept up to date by a database trigger)
-  D.sessions.forEach(s => { if ((+s.duration_minutes || 0) > 0) days[toYMD(new Date(s.created_at))] = 1; });
-  if (running || base > 0) days[todayKey] = 1;                 // starts counting as soon as you start studying today
-  let cur = 0;
-  for (let i = 0; i < 800; i++) {
-    const d = addDays(new Date(), -i);
-    if (days[toYMD(d)]) cur++;
-    else if (i === 0 || d.getDay() === rest) continue;         // today not studied yet, or a day off: does not break the streak
-    else break;
-  }
-  let best = 0, run = 0; const keys = Object.keys(days).sort();
+  const todayKey = toYMD(new Date()), rest = restDay(), cutK = toYMD(addDays(winStart(), 1)), m = {}, cl = {};
+  (D.days || []).forEach(r => { if (r.day < cutK) m[r.day] = +r.minutes || 0; });   // older days: one summary row each (no manual time)
+  D.sessions.forEach(x => { const k = toYMD(new Date(x.created_at)); if (x.type !== 'manual' && k >= cutK) m[k] = (m[k] || 0) + (+x.duration_minutes || 0); });
+  D.classes.forEach(c => { cl[+c.day_of_week] = (cl[+c.day_of_week] || 0) + (+c.duration_minutes || 0); });
+  const live = (running || base) ? base / 60 : 0;
+  if (live) m[todayKey] = (m[todayKey] || 0) + live;
+  const keys = Object.keys(m).filter(k => m[k] > 0).sort();
+  let cur = 0, best = 0;
   if (keys.length) for (let d = ymd(keys[0]); toYMD(d) <= todayKey; d = addDays(d, 1)) {
-    const k = toYMD(d);
-    if (days[k]) { run++; best = Math.max(best, run); } else if (d.getDay() !== rest && k !== todayKey) run = 0;
+    const k = toYMD(d), st = m[k] || 0, mins = st > 0 ? st + (cl[d.getDay()] || 0) : 0;   // classes add to study time, manual time never counts
+    if (mins > (cur >= 15 ? 300 : 180)) { cur++; best = Math.max(best, cur); }          // days 1-15 need over 3 h, after 15 days over 5 h
+    else if (k !== todayKey && d.getDay() !== rest) cur = 0;                              // today not finished yet / a day off do not break it
   }
+  const days = { [todayKey]: (m[todayKey] || 0) > 0 || running || base > 0 };
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);
   const mins = D.sessions.filter(s => new Date(s.created_at) >= t0).reduce((a, s) => a + (+s.duration_minutes || 0), 0)
     + D.classes.filter(c => +c.day_of_week === new Date().getDay()).reduce((a, c) => a + (+c.duration_minutes || 0), 0) + (running || base ? base / 60 : 0);
@@ -747,9 +755,9 @@ function fireState() {
 
 // Streak characters (put the 5 images in a folder called "streak")
 const SIMG = { angry: 'streak/angry.png', calm: 'streak/calm.png', spark: 'streak/spark.png', black: 'streak/black.png', red: 'streak/red.png' };
-const levelOf = n => n >= 60 ? 'red' : n >= 30 ? 'black' : n >= 10 ? 'spark' : n >= 1 ? 'calm' : 'angry';
+const levelOf = n => n >= 60 ? 'red' : n >= 30 ? 'black' : n >= 15 ? 'spark' : n >= 1 ? 'calm' : 'angry';
 const streakImg = f => SIMG[f.studiedToday ? levelOf(Math.max(1, f.cur)) : 'angry'];
-const LVLS = [['angry', 'Not started today'], ['calm', '1-9 days'], ['spark', '10 days'], ['black', '30 days'], ['red', '60 days']];
+const LVLS = [['angry', 'Not started today'], ['calm', '1-14 days'], ['spark', '15 days'], ['black', '30 days'], ['red', '60 days']];
 let lastLB = -1;
 
 function checkStreakPerks() {
@@ -1163,7 +1171,8 @@ function repCollect() {
   else { const ms = starts[+val], me = mEnd(ms); days = []; for (let d = new Date(ms); d < me; d = addDays(d, 1)) days.push(d); }
   return { kind, days, label };
 }
-function openReport() {
+async function openReport() {
+  if (!oldLoaded && repCollect().days[0] < winStart()) { oldLoaded = true; await refresh(); }
   const { kind, days, label } = repCollect(), withCl = $('repClasses').checked;
   const keys = days.map(toYMD), set = new Set(keys), endT = new Date(); endT.setHours(23, 59, 59, 999);
   const ses = D.sessions.filter(s => set.has(toYMD(new Date(s.created_at)))).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -1377,6 +1386,7 @@ function dailySets(days, mode, showCl) {
 }
 function renderCharts() {
   if ($('chartsTab').classList.contains('hidden') || !starts.length) return;
+  if (!oldLoaded && (addDays(weekStart(new Date()), -7 * +$('weekSel').value) < winStart() || starts[+$('monthSel').value] < winStart())) { oldLoaded = true; refresh(); return; }
   const mode = $('chartMode').value, showCl = $('layerClasses').checked, showGr = $('layerGrades').checked, st = mode === 'stacked';
   const yAxis = (extra = {}) => ({ stacked: st, beginAtZero: true, min: 0, max: 20, ticks: { stepSize: 1 }, title: { display: true, text: 'hours' }, ...extra });
   const legend = { labels: { boxWidth: 12, font: { size: 10 }, filter: (it, d) => {
