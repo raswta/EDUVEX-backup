@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-8">
+<meta name="build" content="20261117-9">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -57,6 +57,29 @@ body{font-family:Inter,system-ui,sans-serif}
 #focusClock.nosec .sec{display:none}
 #focusClock .fc{font:700 calc(var(--w)*.9)/1 ui-monospace,monospace;color:#475569}
 </style>
+<style>
+html[data-theme]{--bgc:#0f172a}
+html[data-theme="pink"]{--a3:#f0b8cf;--a4:#e58fb0;--a5:#c2678f;--a6:#a94f78;--a7:#8e3f66;--ar:194,103,143}
+html[data-theme="purple"]{--a3:#cdb8f0;--a4:#b399e6;--a5:#8e6cc9;--a6:#7551b3;--a7:#5e3f99;--ar:142,108,201}
+html[data-theme="green"]{--a3:#a5d9bd;--a4:#7fc4a0;--a5:#4f9d78;--a6:#3d8563;--a7:#2f6b4f;--ar:79,157,120}
+html[data-theme] .text-blue-300{color:var(--a3)!important}
+html[data-theme] .text-blue-400,html[data-theme] .text-blue-500,html[data-theme] .text-blue-700,html[data-theme] .text-violet-300{color:var(--a4)!important}
+html[data-theme] .bg-blue-600,html[data-theme] .bg-indigo-600{background-color:var(--a6)!important}
+html[data-theme] .bg-blue-500,html[data-theme] .hover\:bg-blue-500:hover,html[data-theme] .hover\:bg-blue-600:hover,html[data-theme] .hover\:bg-indigo-500:hover{background-color:var(--a5)!important}
+html[data-theme] .bg-blue-600\/20,html[data-theme] .bg-violet-600\/20{background-color:rgba(var(--ar),.2)!important}
+html[data-theme] .hover\:bg-blue-600\/30:hover,html[data-theme] .hover\:bg-violet-600\/30:hover{background-color:rgba(var(--ar),.3)!important}
+html[data-theme] .bg-blue-500\/15{background-color:rgba(var(--ar),.15)!important}
+html[data-theme] .bg-blue-500\/10{background-color:rgba(var(--ar),.1)!important}
+html[data-theme] .border-blue-500,html[data-theme] .inp:focus{border-color:var(--a5)!important}
+html[data-theme] .border-blue-500\/40{border-color:rgba(var(--ar),.4)!important}
+html[data-theme] .border-blue-500\/30{border-color:rgba(var(--ar),.3)!important}
+html[data-theme] .from-blue-400,html[data-theme] .from-blue-500,html[data-theme] .from-blue-600,html[data-theme] .hover\:from-blue-500:hover{--tw-gradient-from:var(--a5)!important}
+html[data-theme] .to-indigo-500,html[data-theme] .to-indigo-600,html[data-theme] .to-violet-500,html[data-theme] .hover\:to-indigo-500:hover{--tw-gradient-to:var(--a7)!important}
+html[data-theme] .via-indigo-500{--tw-gradient-stops:var(--tw-gradient-from),var(--a6),var(--tw-gradient-to)!important}
+.thc{width:26px;height:26px;border-radius:9999px;border:2px solid transparent;position:relative;flex:none}
+.thc.on{border-color:#e2e8f0}.thc.lk{opacity:.45}
+</style>
+<script>(function(){try{var t=localStorage.getItem('ev_theme');if(t&&t!=='blue')document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
@@ -341,6 +364,8 @@ body{font-family:Inter,system-ui,sans-serif}
 <div id="settings" class="modal"><div class="card max-w-md w-full space-y-5 max-h-[85vh] overflow-y-auto relative">
   <button onclick="modal('settings',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
   <h3 class="text-base font-bold text-slate-200"><i class="fa-solid fa-gear mr-1"></i> Settings</h3>
+  <div class="flex items-center gap-3"><span class="text-xs font-semibold text-slate-300">Theme</span><div id="themeRow" class="flex items-center gap-2"></div></div>
+  <p id="themeNote" class="hidden text-[11px] text-slate-500 -mt-3">More themes unlock when you reach a 15-day streak.</p>
   <div>
     <p class="lbl"><i class="fa-solid fa-calendar-days mr-1"></i> Calendar type (all dates on the site)</p>
     <div class="grid grid-cols-2 gap-2">
@@ -794,9 +819,24 @@ function renderStreak() {
   $('fireIcon').className = 'w-12 h-12 object-contain ' + (f.blaze ? 'fire-blaze' : '');
   $('streakNum').textContent = f.cur;
   $('streakBtn').className = 'w-24 shrink-0 rounded-2xl border bg-slate-900 flex flex-col items-center justify-center py-2 transition ' + (f.blaze ? 'border-orange-500/60 fire-glow' : f.studiedToday ? 'border-amber-500/40' : 'border-slate-800');
-  checkStreakPerks();
+  checkStreakPerks(); renderThemes();
   if (f.cur !== lastLB) { lastLB = f.cur; pushStreak(f.cur); }
 }
+const THEMES = { blue: '#3b82f6', pink: '#c2678f', purple: '#8e6cc9', green: '#4f9d78' };
+function renderThemes() {
+  const row = $('themeRow'); if (!row) return;
+  const cur = localStorage.getItem('ev_theme') || 'blue', ok = fireState().best >= 15;
+  row.innerHTML = Object.entries(THEMES).map(([k, c]) => `<button onclick="setTheme('${k}')" title="${k}" class="thc ${cur === k ? 'on' : ''} ${k !== 'blue' && !ok ? 'lk' : ''}" style="background:${c}">${k !== 'blue' && !ok ? '<i class="fa-solid fa-lock text-[10px] text-white absolute inset-0 flex items-center justify-center"></i>' : ''}</button>`).join('');
+  $('themeNote').classList.toggle('hidden', ok);
+}
+function setTheme(k) {
+  if (k !== 'blue' && fireState().best < 15) return $('themeNote').classList.remove('hidden');
+  localStorage.setItem('ev_theme', k);
+  if (k === 'blue') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', k);
+  renderThemes(); renderCharts();
+}
+const ACC = () => getComputedStyle(document.documentElement).getPropertyValue('--a5').trim() || '#3b82f6';
+const ACCRGB = () => getComputedStyle(document.documentElement).getPropertyValue('--ar').trim() || '59,130,246';
 function openStreak() {
   const f = fireState(), names = CAL === 'shamsi' ? DAYSF : DAYSE;
   $('streakBig').src = streakImg(f);
@@ -1440,8 +1480,8 @@ function dailySets(days, mode, showCl) {
     if (sets.some(x => x.isManual)) sets.push({ label: LEG, data: days.map(() => 0), backgroundColor: 'transparent', borderColor: YEL, borderWidth: 3 });
   } else {
     const man = day.map(ss => ss.some(s => s.type === 'manual'));
-    sets.push({ label: 'Total Hours', data: day.map(hrs), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.2)', fill: true, tension: .2,
-      pointBorderColor: man.map(m => m ? YEL : '#3b82f6'), pointBorderWidth: man.map(m => m ? 3 : 1), pointRadius: man.map(m => m ? 6 : 3) });
+    sets.push({ label: 'Total Hours', data: day.map(hrs), borderColor: ACC(), backgroundColor: `rgba(${ACCRGB()},.2)`, fill: true, tension: .2,
+      pointBorderColor: man.map(m => m ? YEL : ACC()), pointBorderWidth: man.map(m => m ? 3 : 1), pointRadius: man.map(m => m ? 6 : 3) });
     if (man.some(Boolean)) sets.push({ label: LEG, data: [], borderColor: YEL, backgroundColor: 'transparent', borderWidth: 3 });
   }
   if (showCl) sets.push({ type: 'line', label: 'Classes', data: days.map(d => +(D.classes.filter(c => +c.day_of_week === d.getDay()).reduce((a, c) => a + (+c.duration_minutes || 0), 0) / 60).toFixed(2)),
