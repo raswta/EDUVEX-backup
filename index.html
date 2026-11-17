@@ -59,23 +59,26 @@ body{font-family:Inter,system-ui,sans-serif}
 </style>
 <style>
 html[data-theme]{--bgc:#0f172a}
-html[data-theme="pink"]{--a3:#f0b8cf;--a4:#e58fb0;--a5:#c2678f;--a6:#a94f78;--a7:#8e3f66;--ar:194,103,143}
-html[data-theme="purple"]{--a3:#cdb8f0;--a4:#b399e6;--a5:#8e6cc9;--a6:#7551b3;--a7:#5e3f99;--ar:142,108,201}
-html[data-theme="green"]{--a3:#a5d9bd;--a4:#7fc4a0;--a5:#4f9d78;--a6:#3d8563;--a7:#2f6b4f;--ar:79,157,120}
+html[data-theme="pink"]{--a3:#f4a3c7;--a4:#e06399;--a5:#b53d71;--a6:#942c5a;--a7:#731d43;--ar:181,61,113}
+html[data-theme="purple"]{--a3:#d1b0f7;--a4:#ab75e8;--a5:#8042c7;--a6:#662db0;--a7:#4d1d94;--ar:128,66,199}
+html[data-theme="green"]{--a3:#8ce0b4;--a4:#4db881;--a5:#2b8f5d;--a6:#1e7347;--a7:#125433;--ar:43,143,93}
 html[data-theme] .text-blue-300{color:var(--a3)!important}
 html[data-theme] .text-blue-400,html[data-theme] .text-blue-500,html[data-theme] .text-blue-700,html[data-theme] .text-violet-300{color:var(--a4)!important}
-html[data-theme] .bg-blue-600,html[data-theme] .bg-indigo-600{background-color:var(--a6)!important}
-html[data-theme] .bg-blue-500,html[data-theme] .hover\:bg-blue-500:hover,html[data-theme] .hover\:bg-blue-600:hover,html[data-theme] .hover\:bg-indigo-500:hover{background-color:var(--a5)!important}
-html[data-theme] .bg-blue-600\/20,html[data-theme] .bg-violet-600\/20{background-color:rgba(var(--ar),.2)!important}
-html[data-theme] .hover\:bg-blue-600\/30:hover,html[data-theme] .hover\:bg-violet-600\/30:hover{background-color:rgba(var(--ar),.3)!important}
-html[data-theme] .bg-blue-500\/15{background-color:rgba(var(--ar),.15)!important}
-html[data-theme] .bg-blue-500\/10{background-color:rgba(var(--ar),.1)!important}
+html[data-theme] .bg-blue-600,html[data-theme] .bg-indigo-600,html[data-theme] .bg-emerald-600,html[data-theme] .bg-amber-600{background-color:var(--a6)!important}
+html[data-theme] .bg-blue-500,html[data-theme] .hover\:bg-blue-500:hover,html[data-theme] .hover\:bg-blue-600:hover,html[data-theme] .hover\:bg-indigo-500:hover,html[data-theme] .hover\:bg-emerald-500:hover,html[data-theme] .hover\:bg-amber-500:hover{background-color:var(--a5)!important}
+html[data-theme] .bg-blue-600\/20,html[data-theme] .bg-violet-600\/20,html[data-theme] .bg-emerald-600\/20,html[data-theme] .bg-amber-500\/10{background-color:rgba(var(--ar),.25)!important}
+html[data-theme] .hover\:bg-blue-600\/30:hover,html[data-theme] .hover\:bg-violet-600\/30:hover{background-color:rgba(var(--ar),.35)!important}
+html[data-theme] .bg-blue-500\/15,html[data-theme] .bg-emerald-500\/10{background-color:rgba(var(--ar),.2)!important}
+html[data-theme] .bg-blue-500\/10{background-color:rgba(var(--ar),.15)!important}
 html[data-theme] .border-blue-500,html[data-theme] .inp:focus{border-color:var(--a5)!important}
-html[data-theme] .border-blue-500\/40{border-color:rgba(var(--ar),.4)!important}
-html[data-theme] .border-blue-500\/30{border-color:rgba(var(--ar),.3)!important}
+html[data-theme] .border-blue-500\/40,html[data-theme] .border-emerald-500\/25,html[data-theme] .border-amber-500\/30{border-color:rgba(var(--ar),.6)!important}
+html[data-theme] .border-blue-500\/30{border-color:rgba(var(--ar),.4)!important}
 html[data-theme] .from-blue-400,html[data-theme] .from-blue-500,html[data-theme] .from-blue-600,html[data-theme] .hover\:from-blue-500:hover{--tw-gradient-from:var(--a5)!important}
 html[data-theme] .to-indigo-500,html[data-theme] .to-indigo-600,html[data-theme] .to-violet-500,html[data-theme] .hover\:to-indigo-500:hover{--tw-gradient-to:var(--a7)!important}
 html[data-theme] .via-indigo-500{--tw-gradient-stops:var(--tw-gradient-from),var(--a6),var(--tw-gradient-to)!important}
+html[data-theme] .tab-btn.on{background-color:var(--a6)!important;color:#ffffff!important;}
+html[data-theme] .card{border-color:rgba(var(--ar),.35)!important;}
+html[data-theme] select, html[data-theme] input{border-color:rgba(var(--ar),.4)!important;}
 .thc{width:26px;height:26px;border-radius:9999px;border:2px solid transparent;position:relative;flex:none}
 .thc.on{border-color:#e2e8f0}.thc.lk{opacity:.45}
 </style>
@@ -822,7 +825,7 @@ function renderStreak() {
   checkStreakPerks(); renderThemes();
   if (f.cur !== lastLB) { lastLB = f.cur; pushStreak(f.cur); }
 }
-const THEMES = { blue: '#3b82f6', pink: '#c2678f', purple: '#8e6cc9', green: '#4f9d78' };
+const THEMES = { blue: '#3b82f6', pink: '#b53d71', purple: '#8042c7', green: '#2b8f5d' };
 function renderThemes() {
   const row = $('themeRow'); if (!row) return;
   const cur = localStorage.getItem('ev_theme') || 'blue', ok = true;
