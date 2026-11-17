@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-3">
+<meta name="build" content="20261117-6">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -237,9 +237,7 @@ body{font-family:Inter,system-ui,sans-serif}
     <div class="card">
       <div class="flex justify-between items-center mb-3 gap-2">
         <h4 class="text-sm font-semibold text-amber-400"><i class="fa-solid fa-trophy mr-1"></i> Leaderboard (by streak)</h4>
-        <button id="hideBtn" onclick="toggleHide()" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg text-xs whitespace-nowrap"><i class="fa-solid fa-eye-slash mr-1"></i> Hide me</button>
       </div>
-      <p id="hideNote" class="hidden text-[11px] text-slate-500 mb-2">You are hidden. Press Show me to appear on the leaderboard.</p>
       <div id="lbList" class="space-y-2"></div>
     </div>
   </div>
@@ -426,7 +424,7 @@ body{font-family:Inter,system-ui,sans-serif}
   <p><b><i class="fa-solid fa-bullseye text-blue-400 mr-1"></i> Goal bar:</b> choose Daily or Weekly, type your target hours (12.5 means 12 hours 30 minutes) and press Save Goal. The bar counts your study sessions plus your weekly classes.</p>
   <p><b><i class="fa-solid fa-fire text-orange-400 mr-1"></i> Streak:</b> the character next to the goal bar counts your days in a row. It is angry until you start studying today, and it glows when you reach your daily goal. Tap it to choose a weekly day off that never breaks your streak.</p>
   <p><b><i class="fa-solid fa-face-smile text-orange-400 mr-1"></i> Streak character:</b> the character shows your level. Angry: you have not started studying today (with any streak). Calm: you started today and have a 1-14 day streak. Sparkle: 15 days. Black graduation cap: 30 days. Red graduation cap: 60 days. Tap it to see all levels.</p>
-  <p><b><i class="fa-solid fa-ranking-star text-amber-400 mr-1"></i> Leaderboard:</b> in the Study Room tab, everyone is ranked by streak (most days first), with their username, streak and level character. You are hidden by default. Press Show me to appear there, and Hide me to leave again.</p>
+  <p><b><i class="fa-solid fa-ranking-star text-amber-400 mr-1"></i> Leaderboard:</b> in the Study Room tab, everyone is ranked by streak (most days first), with their username, streak and level character. Everyone with a streak is listed automatically.</p>
   <p><b><i class="fa-solid fa-stopwatch text-blue-400 mr-1"></i> Timer:</b> pick a subject and press Start. To study another subject, press Pause, choose the new subject and press Resume. The big clock keeps the total, and each subject is saved with its own time when you press Finish &amp; Save. Sessions shorter than 15 seconds are not saved. The stopwatch keeps going if you refresh the page.</p>
   <p><b><i class="fa-solid fa-user-clock text-blue-400 mr-1"></i> Still studying? check:</b> if the stopwatch runs for 3 hours without you touching the app, a popup asks whether you are still studying. Tap Yes within 10 minutes to keep going. If you do not, the stopwatch pauses and the waiting time is not counted. For very long sessions, use Focus mode so the screen stays on and you can answer.</p>
   <p><b><i class="fa-solid fa-expand text-blue-400 mr-1"></i> Focus mode:</b> tap the expand icon at the top to show only a big study clock and a small Study Room window. Nothing is locked, so you can leave the app any time. Press Exit focus mode at the bottom to come back.</p>
@@ -633,7 +631,10 @@ function onLogin() {
     leaveRoom();
   }
   refresh();
-  remotePull(); setInterval(remotePull, 10000); document.addEventListener('visibilitychange', () => { if (!document.hidden) remotePull(); });
+  remotePull(); setInterval(remotePull, 10000);
+  setTimeout(() => { if (running) remotePush(); }, 4000);                                  // a timer that was already running (started before this update / reopened tab) becomes visible to other devices
+  setInterval(async () => { if (user && running) { await remotePull(); if (running) remotePush(); } }, 60000);   // heartbeat while studying
+  window.addEventListener('online', remotePull); document.addEventListener('visibilitychange', () => { if (!document.hidden) remotePull(); });
   initCollapse();
   if (!roomInt) {
     roomInt = setInterval(() => { if (inRoom || focusActive || !$('roomTab').classList.contains('hidden')) syncRoom(); }, 10000);
@@ -869,7 +870,7 @@ async function remotePull() {
     if (!data || !data.state) { remote = null; return remBar(); }
     const st = data.state, t = new Date(data.updated_at).getTime();
     if (st.dev === DEV) { remote = null; return remBar(); }                 // my own write
-    if (st.finished) { remote = null; if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); refresh(); } return remBar(); }
+    if (st.finished) { remote = null; if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); leaveRoom(); refresh(); } return remBar(); }
     if (st.id && st.id === localStorage.getItem('ev_timer_done')) { remote = null; return remBar(); }
     if (runId && runId === st.id) {                                        // another device paused/resumed MY run: follow it
       if (t <= remAt + 1500) return; remAt = t;
@@ -884,9 +885,11 @@ function remNow(st) {
   if (gap) sg[st.subject] = (sg[st.subject] || 0) + gap;
   return { base: (st.base || 0) + gap, segs: sg };
 }
+let remWas = false;
 function remBar() {
   const el = $('remBar'); if (!el) return;
-  if (!remote || (remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) { el.classList.add('hidden'); return; }
+  if (!remote || (remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) { el.classList.add('hidden'); if (remWas) { remWas = false; draw(); } return; }
+  remWas = true; if (!running && !base) draw();
   const n = remNow(remote), h = Math.floor(n.base / 3600), m = Math.floor(n.base % 3600 / 60), sc = n.base % 60;
   $('remTime').textContent = [h, m, sc].map(x => String(x).padStart(2, '0')).join(':');
   $('remSub').textContent = (remote.subject || 'Study') + (remote.running ? ' · running' : ' · paused');
@@ -903,7 +906,7 @@ async function remFinish() {
   const n = remNow(remote), st = remote, tp = st.tops || {}; remote = null; remBar();
   for (const [subject, secs] of Object.entries(n.segs))
     if (secs >= 15) await save('study_sessions', { subject, duration_minutes: Math.max(1, Math.round(secs / 60)), type: 'stopwatch', created_at: new Date().toISOString(), ...(tp[subject] ? { topic: tp[subject] } : {}) });
-  await remotePush(st.id); refresh();
+  await remotePush(st.id); await leaveRoom(); refresh();
 }
 setInterval(remBar, 1000);
 function abandon() {
@@ -926,11 +929,12 @@ function flipSet(str) {
   });
 }
 function draw() {
-  const s = pomo ? Math.max(0, pLeft) : base;
+  const rem = remote && !running && !base && !(remote.running && Date.now() - remote.lastTick > 6 * 3600e3);   // timer running on another device: show its time here too
+  const s = pomo && !rem ? Math.max(0, pLeft) : rem ? remNow(remote).base : base;
   const p = n => String(n).padStart(2, '0');
   const clk = `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`;
   $('swDisplay').textContent = clk; flipSet(clk);
-  $('swStatus').textContent = !running ? (base ? 'Paused' : 'Ready') : (pState === 'rest' ? 'Resting...' : 'Studying...');
+  $('swStatus').textContent = rem ? (remote.running ? 'Running on your other device' : 'Paused on your other device') : !running ? (base ? 'Paused' : 'Ready') : (pState === 'rest' ? 'Resting...' : 'Studying...');
   $('swBreak').innerHTML = Object.entries(segs).map(([n, v]) => `<div class="flex justify-between"><span>${esc(n)}</span><span class="font-mono">${Math.floor(v / 60)} min</span></div>`).join('');
 }
 function ui() {
@@ -1317,32 +1321,20 @@ async function downloadPdf() {
 // ---------- Leaderboard ----------
 async function pushStreak(n) {
   if (!user || !navigator.onLine) return;
-  const { error } = await sb.from('leaderboard').upsert({ user_id: user.id, username: user.email.split('@')[0], streak: n, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  const { error } = await sb.from('leaderboard').upsert({ user_id: user.id, username: user.email.split('@')[0], streak: n, hidden: false, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
   if (error) console.error('leaderboard', error);
 }
 async function loadLB() {
   if (!user || !navigator.onLine) return;
-  const { data, error } = await sb.from('leaderboard').select('*').eq('hidden', false).order('streak', { ascending: false }).limit(50);
+  const { data, error } = await sb.from('leaderboard').select('*').gte('streak', LB_MIN).order('streak', { ascending: false }).limit(50);
   if (error) return console.error('leaderboard', error);
-  const { data: me } = await sb.from('leaderboard').select('hidden').eq('user_id', user.id).maybeSingle();
-  myHidden = me ? !!me.hidden : true;                     // new users start hidden
-  $('hideNote').classList.toggle('hidden', !myHidden);
-  $('hideBtn').innerHTML = myHidden ? '<i class="fa-solid fa-eye mr-1"></i> Show me' : '<i class="fa-solid fa-eye-slash mr-1"></i> Hide me';
   $('lbList').innerHTML = (data || []).map((m, i) => `<div class="row ${m.user_id === user.id ? '!border-blue-500' : ''}">
     <div class="flex items-center gap-2"><span class="w-5 text-slate-400 font-mono">${i + 1}</span>
     <img src="${SIMG[levelOf(m.streak)]}" class="w-9 h-9 object-contain" alt=""><b>${esc(m.username)}</b>${m.user_id === user.id ? ' (You)' : ''}</div>
     <span class="font-mono text-sm text-amber-300">${m.streak} day${m.streak === 1 ? '' : 's'}</span></div>`).join('') || '<p class="text-xs text-slate-500 text-center py-4">No one yet.</p>';
 }
 
-let myHidden = false;
-async function toggleHide() {
-  if (!user) return;
-  if (!navigator.onLine) return alert('You need to be online to change this.');
-  const next = !myHidden;
-  const { error } = await sb.from('leaderboard').upsert({ user_id: user.id, username: user.email.split('@')[0], streak: Math.max(0, fireState().cur), hidden: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-  if (error) return alert('Error: ' + error.message);
-  loadLB();
-}
+const LB_MIN = 1;   // everyone with at least this many streak days is on the leaderboard
 
 // ---------- Room ----------
 function loadRoomPrefs() {
@@ -1408,7 +1400,7 @@ const hms = s => { s = Math.max(0, Math.floor(s)); const p = n => String(n).padS
 function renderRoom() {
   if (!user) return;
   const el = Math.max(0, Math.min(10, (Date.now() - roomAt) / 1000));          // seconds since the last refresh
-  const secs = m => m.user_id === user.id ? base : (m.live_seconds || 0) + (m.is_studying ? el : 0);
+  const secs = m => m.user_id === user.id && (running || base > 0) ? base : (m.live_seconds || 0) + (m.is_studying ? el : 0);   // my own row: this device's clock if it has the timer, otherwise the one from my other device
   if (!$('roomTab').classList.contains('hidden')) $('roomList').innerHTML = roomRows.map(m => {
     const { sub, cls } = unpackSubject(m.current_subject);
     return `<div class="row"><div><i class="fa-solid fa-user-graduate text-blue-400 mr-1"></i> <b>${esc(m.username)}</b>${m.user_id === user.id ? ' (You)' : ''}${sub ? `<span class="block text-[10px] text-slate-400">${esc(sub)}</span>` : ''}</div>
