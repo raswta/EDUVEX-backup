@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-2">
+<meta name="build" content="20261117-3">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -42,6 +42,19 @@ body{font-family:Inter,system-ui,sans-serif}
 @keyframes blaze{0%{transform:scale(1) rotate(-3deg);filter:drop-shadow(0 0 6px #f97316) drop-shadow(0 0 14px #ef4444)}100%{transform:scale(1.28) rotate(3deg);filter:drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 30px #ef4444)}}
 .fire-glow{animation:glowbox 1.2s ease-in-out infinite alternate}
 @keyframes glowbox{from{box-shadow:0 0 6px rgba(249,115,22,.35)}to{box-shadow:0 0 22px rgba(239,68,68,.65)}}
+</style>
+<style>
+#focusClock{--w:min(12.5vw,6.5rem);--h:calc(var(--w)*1.45);display:flex;align-items:center;justify-content:center;gap:min(1.2vw,.5rem)}
+#focusClock .fl{position:relative;width:var(--w);height:var(--h);perspective:700px;font:700 calc(var(--w)*1.15)/var(--h) ui-monospace,Menlo,Consolas,monospace;color:#f1f5f9}
+#focusClock .fl>div{position:absolute;left:0;right:0;height:50%;overflow:hidden;background:#1e293b;text-align:center;backface-visibility:hidden}
+#focusClock .fl .t{top:0;border-radius:10px 10px 0 0;border-bottom:1px solid #020617}
+#focusClock .fl .b{bottom:0;border-radius:0 0 10px 10px}
+#focusClock .fl span{display:block;height:var(--h);line-height:var(--h)}
+#focusClock .fl .b span{position:relative;top:-100%}
+#focusClock .fl .ft{transform-origin:bottom;animation:ftA .22s ease-in forwards;z-index:2}
+#focusClock .fl .fb{transform-origin:top;transform:rotateX(90deg);animation:fbA .22s .22s ease-out forwards;z-index:2}
+@keyframes ftA{to{transform:rotateX(-90deg)}}@keyframes fbA{to{transform:rotateX(0)}}
+#focusClock .fc{font:700 calc(var(--w)*.9)/1 ui-monospace,monospace;color:#475569}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
@@ -299,7 +312,7 @@ body{font-family:Inter,system-ui,sans-serif}
 
 <div id="focus" class="hidden fixed inset-0 z-[45] bg-slate-950 flex flex-col items-center justify-center p-6 gap-8">
   <div class="flex flex-wrap items-center justify-center gap-8 w-full">
-    <div id="focusClock" class="font-mono font-bold tracking-wider text-slate-100 text-[17vw] sm:text-8xl leading-none">00:00:00</div>
+    <div id="focusClock"></div>
     <div class="w-56 max-w-full bg-slate-900/70 border border-slate-800 rounded-2xl p-3">
       <div class="text-[11px] text-slate-400 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-users"></i> Study Room</div>
       <div id="focusRoom" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
@@ -898,11 +911,25 @@ function abandon() {
   $('swTopic').value = '';
   localStorage.removeItem('ev_timer'); ui();
 }
+function flipSet(str) {
+  const el = $('focusClock');
+  if (!el.firstChild) el.innerHTML = [...str].map(ch => ch === ':' ? '<div class="fc">:</div>' : '<div class="fl"><div class="t"><span></span></div><div class="b"><span></span></div></div>').join('');
+  const tiles = el.querySelectorAll('.fl'); let i = 0;
+  [...str].forEach(ch => { if (ch === ':') return; const t = tiles[i++]; if (!t) return;
+    const ts = t.querySelector('.t span'), bs = t.querySelector('.b span');
+    if (t._d === undefined) { ts.textContent = bs.textContent = ch; t._d = ch; return; }
+    if (t._d === ch) return;
+    const old = t._d; t._d = ch; ts.textContent = ch;
+    const ft = document.createElement('div'), fb = document.createElement('div');
+    ft.className = 't ft'; ft.innerHTML = `<span>${old}</span>`; fb.className = 'b fb'; fb.innerHTML = `<span>${ch}</span>`;
+    t.append(ft, fb); setTimeout(() => { bs.textContent = ch; ft.remove(); fb.remove(); }, 460);
+  });
+}
 function draw() {
   const s = pomo ? Math.max(0, pLeft) : base;
   const p = n => String(n).padStart(2, '0');
   const clk = `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`;
-  $('swDisplay').textContent = clk; $('focusClock').textContent = clk;
+  $('swDisplay').textContent = clk; flipSet(clk);
   $('swStatus').textContent = !running ? (base ? 'Paused' : 'Ready') : (pState === 'rest' ? 'Resting...' : 'Studying...');
   $('swBreak').innerHTML = Object.entries(segs).map(([n, v]) => `<div class="flex justify-between"><span>${esc(n)}</span><span class="font-mono">${Math.floor(v / 60)} min</span></div>`).join('');
 }
