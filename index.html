@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-9">
+<meta name="build" content="20261117-9p">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -825,12 +825,12 @@ function renderStreak() {
 const THEMES = { blue: '#3b82f6', pink: '#c2678f', purple: '#8e6cc9', green: '#4f9d78' };
 function renderThemes() {
   const row = $('themeRow'); if (!row) return;
-  const cur = localStorage.getItem('ev_theme') || 'blue', ok = fireState().best >= 15;
+  const cur = localStorage.getItem('ev_theme') || 'blue', ok = true;
   row.innerHTML = Object.entries(THEMES).map(([k, c]) => `<button onclick="setTheme('${k}')" title="${k}" class="thc ${cur === k ? 'on' : ''} ${k !== 'blue' && !ok ? 'lk' : ''}" style="background:${c}">${k !== 'blue' && !ok ? '<i class="fa-solid fa-lock text-[10px] text-white absolute inset-0 flex items-center justify-center"></i>' : ''}</button>`).join('');
   $('themeNote').classList.toggle('hidden', ok);
 }
 function setTheme(k) {
-  if (k !== 'blue' && fireState().best < 15) return $('themeNote').classList.remove('hidden');
+  if (false) return $('themeNote').classList.remove('hidden');
   localStorage.setItem('ev_theme', k);
   if (k === 'blue') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', k);
   renderThemes(); renderCharts();
