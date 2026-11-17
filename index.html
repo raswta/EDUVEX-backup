@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261117-7">
+<meta name="build" content="20261117-8">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -873,7 +873,7 @@ async function remotePull() {
     if (error) console.error('live_timer pull', error);
     if (!data || !data.state) { remote = null; return remBar(); }
     const st = data.state, t = new Date(data.updated_at).getTime();
-    if (st.dev === DEV) { remote = null; return remBar(); }                 // my own write
+    if (st.dev === DEV) { remote = (st.finished || running || base > 0) ? null : st; return remBar(); }   // my own write: if I wrote it from the bar (paused/resumed), the bar stays until Finish
     if (st.finished) { remote = null; if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); leaveRoom(); refresh(); } return remBar(); }
     if (st.id && st.id === localStorage.getItem('ev_timer_done')) { remote = null; return remBar(); }
     if (runId && runId === st.id) {                                        // another device paused/resumed MY run: follow it
