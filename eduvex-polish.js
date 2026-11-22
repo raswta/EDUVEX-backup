@@ -2,6 +2,7 @@
    Load AFTER the main script:  <script src="eduvex-polish.js?v=1"></script>  (just before </body>) */
 (function () {
   'use strict';
+  if (window.__evPolish) return; window.__evPolish = 1;
 
   /* ---------- 1) Notebook look: dark blue, thick outlines, hard shadows (CSS only, every feature stays) ---------- */
   var css = `
@@ -128,15 +129,17 @@ body .modal.show>*{animation:evPop .18s ease-out}
     anchor.parentNode.insertBefore(box, anchor);
   }
 
-  /* ---------- 2b) Style switch (Solid = original look, Grid = notebook look) ---------- */
+  /* ---------- 2b) Style switch: two round swatches above Theme (Solid = original look, Grid = notebook look) ---------- */
   var tRow = document.getElementById('themeRow'), tBox = tRow && tRow.parentNode;
   if (tBox && !document.getElementById('styG')) {
     var sw = document.createElement('div');
     sw.className = 'flex items-center gap-3';
-    sw.innerHTML = '<span class="text-xs font-semibold text-slate-300">Style</span>' +
-      '<div class="grid grid-cols-2 gap-2 flex-1">' +
-      '<button id="styS" onclick="setUiStyle(\'solid\')" class="btn">Solid</button>' +
-      '<button id="styG" onclick="setUiStyle(\'grid\')" class="btn">Grid</button></div>';
+    var gridBg = 'background-color:#0a1128;background-image:linear-gradient(rgba(96,165,250,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,.6) 1px,transparent 1px);background-size:7px 7px';
+    sw.innerHTML = '<span class="text-xs font-semibold text-slate-300">Style <span class="text-[9px] text-slate-500 font-normal">v4</span></span>' +
+      '<div class="flex items-center gap-4">' +
+      '<span class="flex items-center gap-1.5"><button id="styS" type="button" onclick="setUiStyle(\'solid\')" title="Solid" aria-label="Solid style" class="thc" style="background:#334155"></button><span class="text-[10px] text-slate-400">Solid</span></span>' +
+      '<span class="flex items-center gap-1.5"><button id="styG" type="button" onclick="setUiStyle(\'grid\')" title="Grid" aria-label="Grid style" class="thc" style="' + gridBg + '"></button><span class="text-[10px] text-slate-400">Grid</span></span>' +
+      '</div>';
     tBox.parentNode.insertBefore(sw, tBox);
   }
   var uiStyle = function () { return localStorage.getItem('ev_style') === 'solid' ? 'solid' : 'grid'; };
@@ -144,12 +147,77 @@ body .modal.show>*{animation:evPop .18s ease-out}
     var grid = uiStyle() === 'grid';
     st.disabled = !grid; fl.disabled = !grid;
     var a = document.getElementById('styS'), b = document.getElementById('styG');
-    if (a) a.className = 'btn ' + (!grid ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
-    if (b) b.className = 'btn ' + (grid ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
+    if (a) a.classList.toggle('on', !grid);
+    if (b) b.classList.toggle('on', grid);
     if (typeof fit === 'function') fit();
   }
   window.setUiStyle = function (k) { localStorage.setItem('ev_style', k); applyStyle(); };
   applyStyle();
+
+  /* ---------- 2c) Drawers (Subjects, Account) ---------- */
+  function drawerize(box, key, openDef) {
+    var head = box && box.firstElementChild;
+    if (!head || box.dataset.drawer) return;
+    box.dataset.drawer = '1';
+    var body = document.createElement('div'); body.className = 'mt-3';
+    while (head.nextSibling) body.appendChild(head.nextSibling);
+    box.appendChild(body);
+    var k = 'ev_dr_' + key, ch = document.createElement('i');
+    ch.className = 'fa-solid fa-chevron-down text-[10px]'; ch.style.transition = 'transform .2s';
+    head.style.cssText += ';display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:0';
+    head.appendChild(ch);
+    var set = function (o) { body.style.display = o ? '' : 'none'; ch.style.transform = o ? '' : 'rotate(-90deg)'; };
+    var saved = localStorage.getItem(k); set(saved === null ? openDef : saved === '1');
+    head.onclick = function () { var o = body.style.display === 'none'; localStorage.setItem(k, o ? '1' : '0'); set(o); };
+  }
+  var subjList = document.getElementById('subjList');
+  if (subjList) drawerize(subjList.parentNode, 'subj', false);
+
+  if (anchor && !document.getElementById('acUser')) {
+    var acct = document.createElement('div');
+    acct.innerHTML =
+      '<p class="lbl"><i class="fa-solid fa-user mr-1"></i> Account</p>' +
+      '<div class="space-y-2">' +
+        '<div class="row"><span class="text-slate-400">Username :</span><b id="acUser">-</b></div>' +
+        '<div class="row"><span class="text-slate-400">Password :</span><span class="flex items-center gap-3 min-w-0">' +
+          '<span id="acPw" class="font-mono break-all">••••••••</span>' +
+          '<button type="button" id="acEye" class="text-slate-400 hover:text-slate-200" title="Show / hide"><i class="fa-solid fa-eye"></i></button>' +
+          '<button type="button" id="acForget" class="text-red-400 hover:text-red-300" title="Forget saved password"><i class="fa-solid fa-trash"></i></button></span></div>' +
+        '<p id="acNote" class="text-[11px] text-slate-500"></p>' +
+        '<div id="pwSlot" class="pt-3"></div>' +
+      '</div>';
+    anchor.parentNode.insertBefore(acct, anchor);
+    document.getElementById('pwSlot').appendChild(anchor);      // the original "Change password" block moves in here
+    drawerize(acct, 'acct', false);
+  }
+
+  // The password is only known at the moment you type it, so it is remembered on THIS device when you sign in.
+  var pwShow = false, pwKey = function () { return user ? 'ev_pw_' + user.id : ''; };
+  function acRefresh() {
+    var u = document.getElementById('acUser'); if (!u || typeof user === 'undefined' || !user) return;
+    u.textContent = user.email.split('@')[0];
+    var pw = localStorage.getItem(pwKey());
+    document.getElementById('acPw').textContent = pw ? (pwShow ? pw : '•'.repeat(Math.min(pw.length, 12))) : '(not saved on this device)';
+    document.getElementById('acEye').style.display = document.getElementById('acForget').style.display = pw ? '' : 'none';
+    document.getElementById('acNote').textContent = pw
+      ? 'Saved only on this device, as plain text. Anyone who opens this device could see it here. Tap the trash icon to forget it. It is also removed when you log out.'
+      : 'The server never keeps your password in a readable form. Log out and sign in once more on this device and it will show up here.';
+  }
+  var eye = document.getElementById('acEye'), fg = document.getElementById('acForget');
+  if (eye) eye.onclick = function () { pwShow = !pwShow; eye.innerHTML = '<i class="fa-solid fa-eye' + (pwShow ? '-slash' : '') + '"></i>'; acRefresh(); };
+  if (fg) fg.onclick = function () { if (user) localStorage.removeItem(pwKey()); pwShow = false; acRefresh(); };
+  setInterval(acRefresh, 1500);
+
+  var wrap = function (name, make) { var o = window[name]; if (typeof o === 'function') window[name] = make(o); };
+  var onSign = function (o) { return async function () {
+    var pw = document.getElementById('aPass').value, r = await o.apply(this, arguments);
+    if (user && pw) localStorage.setItem(pwKey(), pw); acRefresh(); return r; }; };
+  wrap('login', onSign); wrap('signup', onSign);
+  wrap('changePassword', function (o) { return async function () {
+    var n = document.getElementById('cpNew').value, r = await o.apply(this, arguments);
+    if (user && n.length >= 6 && document.getElementById('cpNew').value === '') localStorage.setItem(pwKey(), n);   // the app clears the box only on success
+    acRefresh(); return r; }; });
+  wrap('logout', function (o) { return function () { try { if (user) localStorage.removeItem(pwKey()); } catch (e) {} return o.apply(this, arguments); }; });
 
   /* ---------- 3) Lock screen timer (Media Session) ---------- */
   var lsAud = null, lsKey = '', lsReady = false;
