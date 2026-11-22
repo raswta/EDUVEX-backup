@@ -1,72 +1,93 @@
-/* EDUVEX add-on: cleaner layout + lock screen timer (Media Session).
+/* EDUVEX add-on: notebook-style dark blue layout + lock screen timer (Media Session).
    Load AFTER the main script:  <script src="eduvex-polish.js?v=1"></script>  (just before </body>) */
 (function () {
   'use strict';
 
-  /* ---------- 1) Layout polish (CSS only, every feature stays) ---------- */
+  /* ---------- 1) Notebook look: dark blue, thick outlines, hard shadows (CSS only, every feature stays) ---------- */
   var css = `
+:root{--ink:#020617;--paper:#0a1122;--card:#101a30;--edge:#3b4a66}
+html[data-theme]{--ink:rgb(var(--s950r))}
 html{scroll-behavior:smooth}
 *{scrollbar-width:thin;scrollbar-color:#334155 transparent}
-body{-webkit-tap-highlight-color:transparent;background-image:radial-gradient(1200px 500px at 50% -10%,rgba(59,130,246,.08),transparent 60%)}
-html[data-theme] body{background-image:radial-gradient(1200px 500px at 50% -10%,rgba(var(--ar),.1),transparent 60%)}
-body>header{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding-top:.6rem;padding-bottom:.6rem}
-body>header #hdrTools{gap:.4rem}
-body main{padding:1rem .85rem 2rem}
-body>footer{padding:.9rem;opacity:.8}
+html body{font-family:'Bricolage Grotesque',Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
 
-/* consistent vertical rhythm */
-body #app>*+*{margin-top:1rem!important}
-body .tab.space-y-6>*+*{margin-top:1rem!important}
-body .grid.gap-6{gap:1rem}
+/* graph-paper notebook background (dark blue) */
+html:not([data-theme]) body.bg-slate-950{background-color:var(--paper)}
+body.bg-slate-950{background-image:linear-gradient(rgba(148,163,184,.075) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.075) 1px,transparent 1px);background-size:26px 26px}
+html[data-theme] body.bg-slate-950{background-image:linear-gradient(rgba(var(--ar),.12) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--ar),.12) 1px,transparent 1px)}
 
-/* cards */
-body .card{padding:1.1rem;border-radius:1.1rem;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 8px 24px -12px rgba(0,0,0,.55)}
-body .card>h3:first-child,body .card h4{font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.75rem}
-body .card.space-y-3>*+*{margin-top:.7rem!important}
-body .card.space-y-4>*+*{margin-top:.9rem!important}
+/* header */
+body>header{padding:.7rem 1rem;border-bottom:3px solid var(--ink);box-shadow:0 4px 0 rgba(0,0,0,.35)}
+html:not([data-theme]) body>header{background:#0b1a3d}
+body>header>div>span{font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+body>header #hdrTools{gap:.45rem}
+body>header #hdrTools>button{border:2px solid var(--ink);border-radius:.65rem;box-shadow:2px 2px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+body>header #hdrTools>button:active{transform:translate(2px,2px);box-shadow:none}
+body main{padding:1.1rem .9rem 2rem}
+body>footer{border-top:2px dashed rgba(148,163,184,.25);padding:.9rem;opacity:.85}
 
-/* sticky, scroll-snapping tab bar */
-#tabBar{position:sticky;z-index:30;gap:.35rem;padding:.5rem .15rem;margin-left:-.15rem;margin-right:-.15rem;
-  background:rgba(2,6,23,.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  scrollbar-width:none;scroll-snap-type:x proximity;border-bottom:1px solid rgba(148,163,184,.12)}
-html[data-theme] #tabBar{background:rgba(var(--s950r),.86)}
+/* rhythm */
+body #app>*+*{margin-top:1.1rem!important}
+body .tab.space-y-6>*+*{margin-top:1.1rem!important}
+body .grid.gap-6{gap:1.1rem}
+body .card.space-y-3>*+*{margin-top:.75rem!important}
+body .card.space-y-4>*+*{margin-top:.95rem!important}
+
+/* cards: bold border + hard shadow */
+body .card{padding:1.15rem;border-width:2px;border-radius:1.1rem;box-shadow:5px 5px 0 var(--ink)}
+html:not([data-theme]) body .card{background-color:var(--card);border-color:var(--edge)}
+body .card>h3:first-child,body .card h4{font-size:.95rem;font-weight:800;letter-spacing:-.01em;margin-bottom:.8rem}
+
+/* tabs */
+#tabBar{position:sticky;z-index:30;gap:.5rem;padding:.65rem .2rem;margin:0 -.2rem;background:rgba(10,17,34,.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);scrollbar-width:none;scroll-snap-type:x proximity;border-bottom:2px dashed rgba(148,163,184,.25)}
+html[data-theme] #tabBar{background:rgba(var(--s950r),.93)}
 #tabBar::-webkit-scrollbar{display:none}
-body .tab-btn{padding:.5rem 1rem;border-radius:9999px;font-size:.8rem;scroll-snap-align:start;transition:background .15s,color .15s}
-body .tab-btn:not(.on):hover{background:rgba(148,163,184,.12);color:#e2e8f0}
+body .tab-btn{padding:.5rem 1rem;border:2px solid transparent;border-radius:.7rem;font-weight:700;font-size:.8rem;scroll-snap-align:start;transition:transform .08s,box-shadow .08s}
+body .tab-btn:not(.on){border-color:rgba(148,163,184,.22);background:rgba(15,23,42,.55)}
+body .tab-btn:not(.on):hover{color:#e2e8f0;border-color:rgba(148,163,184,.45)}
+body .tab-btn.on{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 
-/* forms and buttons */
-body .inp{padding:.62rem .8rem;border-radius:.7rem;min-height:2.6rem;transition:border-color .15s,box-shadow .15s}
-body .inp:focus{box-shadow:0 0 0 3px rgba(var(--ar,59,130,246),.22)}
-body .lbl{font-weight:500;margin-bottom:.3rem}
-body .btn{padding:.7rem 1rem;border-radius:.75rem;font-weight:600;transition:background .15s,transform .1s,opacity .15s}
-body .btn:active{transform:scale(.98)}
-body .btn:disabled{opacity:.6;cursor:not-allowed}
-body .row{padding:.65rem .8rem;border-radius:.75rem;gap:.6rem}
+/* inputs + buttons */
+body .inp{border-width:2px;border-radius:.7rem;padding:.62rem .8rem;min-height:2.7rem}
+html:not([data-theme]) body .inp{background-color:var(--paper);border-color:var(--edge)}
+body .inp:focus{box-shadow:3px 3px 0 rgba(var(--ar,59,130,246),.55)}
+body .lbl{font-weight:600;margin-bottom:.3rem}
+body .btn{padding:.7rem 1rem;border:2px solid var(--ink);border-radius:.75rem;font-weight:700;box-shadow:3px 3px 0 var(--ink);transition:transform .08s,box-shadow .08s,background .15s}
+body .btn:active:not(:disabled){transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+body .btn:disabled{box-shadow:none;opacity:.55;cursor:not-allowed}
+body .row{padding:.65rem .8rem;border-width:2px;border-radius:.75rem;gap:.6rem}
 
-/* timer */
-#swDisplay{font-size:clamp(2.6rem,10vw,3.5rem);font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:1.1rem 0 .4rem}
-#swStatus{font-weight:500;letter-spacing:.03em}
+/* timer ticket */
+#swDisplay{font-size:clamp(2.6rem,10vw,3.6rem);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;padding:.5rem 0;margin:1rem 0 .5rem;border:2px dashed rgba(148,163,184,.3);border-radius:1rem;background:rgba(0,0,0,.25)}
+#swStatus{font-weight:600;letter-spacing:.03em}
 #swBreak{max-height:9rem;overflow-y:auto}
-#sessionsList,#examsList,#classesList{padding-right:.15rem}
 
 /* goal + streak */
-#streakBtn{width:6rem;box-shadow:0 8px 24px -12px rgba(0,0,0,.55)}
+#goalTrack{height:14px!important;border:2px solid var(--ink);border-radius:999px;background:rgba(0,0,0,.3)}
+#goalBar{border-radius:999px}
 #goalText{white-space:nowrap}
+#streakBtn{width:6rem;border-width:2px;box-shadow:4px 4px 0 var(--ink)}
+html:not([data-theme]) #streakBtn{background:var(--card)}
+
+/* warning boxes: solid yellow note like the notebook app */
+body .bg-amber-500\\/10{background:#facc15!important;border:2px solid var(--ink)!important;border-radius:.8rem;box-shadow:3px 3px 0 var(--ink)}
+body .bg-amber-500\\/10,body .bg-amber-500\\/10 *{color:#1c1917!important}
 
 /* modals */
-body .modal{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-body .modal>.card{max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px -12px rgba(0,0,0,.7)}
+body .modal{background-color:rgba(2,6,23,.78);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+body .modal>.card{max-height:90vh;overflow-y:auto;box-shadow:7px 7px 0 var(--ink)}
 body .modal.show>*{animation:evPop .18s ease-out}
 @keyframes evPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
 
-/* settings: grouped sections */
-#settings .card>div{padding-bottom:1rem;border-bottom:1px solid rgba(148,163,184,.12)}
+/* settings sections + theme dots */
+#settings .card>div{padding-bottom:1rem;border-bottom:2px dashed rgba(148,163,184,.2)}
 #settings .card>div:last-of-type{border-bottom:0;padding-bottom:0}
+.thc{width:30px;height:30px;border-width:3px;border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.thc.on{border-color:#f8fafc}
 
-/* small screens */
 @media(max-width:480px){
-  body main{padding:.75rem .6rem 1.5rem}
-  body .card{padding:.95rem}
+  body main{padding:.8rem .6rem 1.5rem}
+  body .card{padding:.95rem;box-shadow:4px 4px 0 var(--ink)}
   #connText{display:none}
   body>header #hdrTools>button{padding:.4rem .55rem}
   #focus .absolute{font-size:.7rem}
@@ -75,6 +96,15 @@ body .modal.show>*{animation:evPop .18s ease-out}
 `;
   var st = document.createElement('style');
   st.id = 'evPolish'; st.textContent = css; document.head.appendChild(st);
+  var fl = document.createElement('link'); fl.rel = 'stylesheet';
+  fl.href = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap';
+  document.head.appendChild(fl);
+
+  // notebook font + goal track hook
+  var fl = document.createElement('link');
+  fl.rel = 'stylesheet'; fl.href = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap';
+  document.head.appendChild(fl);
+  var gb = document.getElementById('goalBar'); if (gb && gb.parentElement) gb.parentElement.id = 'goalTrack';
 
   // sticky tab bar sits right under the header
   var first = document.querySelector('.tab-btn'), bar = first && first.parentElement;
