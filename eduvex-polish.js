@@ -128,6 +128,29 @@ body .modal.show>*{animation:evPop .18s ease-out}
     anchor.parentNode.insertBefore(box, anchor);
   }
 
+  /* ---------- 2b) Style switch (Solid = original look, Grid = notebook look) ---------- */
+  var tRow = document.getElementById('themeRow'), tBox = tRow && tRow.parentNode;
+  if (tBox && !document.getElementById('styG')) {
+    var sw = document.createElement('div');
+    sw.className = 'flex items-center gap-3';
+    sw.innerHTML = '<span class="text-xs font-semibold text-slate-300">Style</span>' +
+      '<div class="grid grid-cols-2 gap-2 flex-1">' +
+      '<button id="styS" onclick="setUiStyle(\'solid\')" class="btn">Solid</button>' +
+      '<button id="styG" onclick="setUiStyle(\'grid\')" class="btn">Grid</button></div>';
+    tBox.parentNode.insertBefore(sw, tBox);
+  }
+  var uiStyle = function () { return localStorage.getItem('ev_style') === 'solid' ? 'solid' : 'grid'; };
+  function applyStyle() {
+    var grid = uiStyle() === 'grid';
+    st.disabled = !grid; fl.disabled = !grid;
+    var a = document.getElementById('styS'), b = document.getElementById('styG');
+    if (a) a.className = 'btn ' + (!grid ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
+    if (b) b.className = 'btn ' + (grid ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
+    if (typeof fit === 'function') fit();
+  }
+  window.setUiStyle = function (k) { localStorage.setItem('ev_style', k); applyStyle(); };
+  applyStyle();
+
   /* ---------- 3) Lock screen timer (Media Session) ---------- */
   var lsAud = null, lsKey = '', lsReady = false;
   var lockOn = function () { return localStorage.getItem('ev_lock') === 'on'; };
