@@ -1,8 +1,25 @@
-/* EDUVEX add-on: notebook-style dark blue layout + lock screen timer (Media Session).
+/* EDUVEX add-on: notebook-style dark blue layout.
    Load AFTER the main script:  <script src="eduvex-polish.js?v=1"></script>  (just before </body>) */
 (function () {
   'use strict';
   if (window.__evPolish) return; window.__evPolish = 1;
+
+  /* ---------- 0) Update notice for THIS file (the old "new version" bar only watches index.html) ---------- */
+  var ADDON_BUILD = '2026-11-22.6';
+  var selfSrc = (document.currentScript && document.currentScript.src) || '';
+  async function checkAddon() {
+    if (!selfSrc || !navigator.onLine) return;
+    try {
+      var t = await (await fetch(selfSrc, { cache: 'reload' })).text();
+      var m = t.match(/ADDON_BUILD = '([^']+)'/);
+      if (!m || m[1] === ADDON_BUILD) return;
+      if (sessionStorage.getItem('ev_upd2') !== m[1]) { sessionStorage.setItem('ev_upd2', m[1]); location.reload(); return; }   // first time: reload by itself
+      var bar = document.getElementById('updBar'); if (bar) bar.classList.remove('hidden');                                      // still old after a reload: show the Update button
+    } catch (e) {}
+  }
+  setTimeout(checkAddon, 3000);
+  setInterval(checkAddon, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkAddon(); });
 
   /* ---------- 1) Notebook look: dark blue, thick outlines, hard shadows (CSS only, every feature stays) ---------- */
   var css = `
@@ -116,20 +133,9 @@ body .modal.show>*{animation:evPop .18s ease-out}
     fit(); addEventListener('resize', fit); addEventListener('load', fit);
   }
 
-  /* ---------- 2) Settings button for the lock screen timer ---------- */
+  /* ---------- 2) Find the spot in Settings ---------- */
   var key = document.querySelector('#settings .fa-key');
   var anchor = key && key.closest('#settings .card>div');
-  if (anchor && !document.getElementById('lockBtn')) {
-    var box = document.createElement('div');
-    box.innerHTML =
-      '<p class="lbl"><i class="fa-solid fa-lock mr-1"></i> Lock screen timer</p>' +
-      '<button id="lockBtn" onclick="lockToggle()" class="btn"></button>' +
-      '<p id="lockInfo" class="text-[11px] text-amber-300 mt-2"></p>' +
-      '<p id="lockDiag" class="text-[10px] text-slate-500 mt-1 font-mono break-all"></p>' +
-      '<p class="text-[11px] text-slate-500 mt-2">Shows the stopwatch on the lock screen with Pause / Play buttons. ' +
-      'It plays a silent sound in the background, so it may pause your music and use a little more battery. Turn it on separately on each device.</p>';
-    anchor.parentNode.insertBefore(box, anchor);
-  }
 
   /* ---------- 2b) Style switch: two round swatches above Theme (Solid = original look, Grid = notebook look) ---------- */
   var tRow = document.getElementById('themeRow'), tBox = tRow && tRow.parentNode;
@@ -224,95 +230,6 @@ body .modal.show>*{animation:evPop .18s ease-out}
     acRefresh(); return r; }; });
   wrap('logout', function (o) { return function () { try { if (user) localStorage.removeItem(pwKey()); } catch (e) {} return o.apply(this, arguments); }; });
 
-  /* ---------- 3) Lock screen timer (Media Session) ---------- */
-  var lsAud = null, lsKey = '', lsReady = false, lsPosAt = 0, lsPosRun = null;
-  var lockOn = function () { return localStorage.getItem('ev_lock') === 'on'; };
-
-  function audio() {
-    if (lsAud) return lsAud;
-    // 30 s of 16-bit audio at an inaudible level (not pure zeros: some phones ignore a perfectly silent clip), looped
-    var sr = 8000, n = sr * 10, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
-    var w = function (o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
-    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
-    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
-    for (var i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.random() < .5 ? -2 : 2, true);
-    lsAud = document.createElement('audio');
-    var u8 = new Uint8Array(b), bin = '';
-    for (var j = 0; j < u8.length; j += 8192) bin += String.fromCharCode.apply(null, u8.subarray(j, j + 8192));
-    lsAud.src = 'data:audio/wav;base64,' + btoa(bin);
-    lsAud.muted = false; lsAud.volume = 1;
-    lsAud.addEventListener('playing', function () { lsKey = ''; });   // re-send the card as soon as sound really starts
-    lsAud.loop = true; lsAud.preload = 'auto'; lsAud.setAttribute('playsinline', ''); lsAud.style.display = 'none';
-    document.body.appendChild(lsAud);
-    return lsAud;
-  }
-  function init() {
-    if (lsReady || !('mediaSession' in navigator)) return;
-    lsReady = true;
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
-    var ms = navigator.mediaSession;
-    ms.setActionHandler('play', function () { if (!running) toggleTimer(); });
-    ms.setActionHandler('pause', function () { if (running) toggleTimer(); });
-    ['previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(function (a) { try { ms.setActionHandler(a, null); } catch (e) {} });
-  }
-  function stop() {
-    if (lsAud && !lsAud.paused) lsAud.pause();
-    if ('mediaSession' in navigator && lsKey) { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = 'none'; }
-    lsKey = ''; lsPosRun = null;
-  }
-  function say(t) { var el = document.getElementById('lockInfo'); if (el && el.textContent !== t) el.textContent = t; }
-  function diag(a) {
-    var el = document.getElementById('lockDiag'); if (!el) return;
-    var t = lockOn() ? 'app:' + (navigator.standalone === true ? 'home-screen' : 'browser') + ' | audio:' + (a ? (a.paused ? 'paused' : 'playing') : 'none') +
-      ' rs:' + (a ? a.readyState : '-') + ' err:' + (a && a.error ? a.error.code : '-') + ' | card:' + (lsKey ? 'set' : 'none') + ' | v5' : '';
-    if (el.textContent !== t) el.textContent = t;
-  }
-  function sync() {
-    diag(lsAud);
-    if (!('mediaSession' in navigator)) { say('This browser has no lock screen support.'); return stop(); }
-    if (!lockOn()) { say(''); return stop(); }
-    if (!(running || base > 0)) { say('Turned on. Start the stopwatch, then lock your device.'); return stop(); }
-    init();
-    var a = audio(), t = pomo ? Math.max(0, pLeft) : base;
-    var title = hms(t) + ' · ' + curSub, artist = running ? (pState === 'rest' ? 'Resting' : 'Studying') : 'Paused';
-    if (title + '|' + artist !== lsKey) {
-      lsKey = title + '|' + artist;
-      navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, album: 'EDUVEX', artwork: [{ src: 'icon.png', sizes: '512x512', type: 'image/png' }] });
-    }
-    navigator.mediaSession.playbackState = running ? 'playing' : 'paused';
-    try {   // gives the lock screen its own ticking elapsed-time counter
-      var nowMs = Date.now();
-      if (running !== lsPosRun || nowMs - lsPosAt > 5000) {
-        lsPosRun = running; lsPosAt = nowMs;
-        navigator.mediaSession.setPositionState({ duration: 86400, playbackRate: 1, position: Math.max(0, Math.min(base, 86399)) });
-      }
-    } catch (e) {}
-    var ok = 'Playing in the background. Lock your device: the card should appear on the lock screen.';
-    if (running) {
-      if (a.paused) a.play().then(function () { say(ok); }).catch(function (e) { say('The sound was blocked (' + ((e && e.name) || 'error') + '). Tap Pause, then Start again.'); });
-      else say(ok);
-    } else { if (!a.paused) a.pause(); say('Paused. Use Play on the lock screen card to continue.'); }
-  }
-  function ui() {
-    var on = lockOn(), b = document.getElementById('lockBtn'); if (!b) return;
-    b.textContent = on ? 'Lock screen timer: ON (tap to turn off)' : 'Lock screen timer: OFF (tap to turn on)';
-    b.className = 'btn ' + (on ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-800 hover:bg-slate-700');
-  }
-  var dupLock = typeof window.lsSync === 'function';   // old inline copy of the lock screen code still in index.html
-  if (!dupLock) window.lockToggle = function () {
-    if (!('mediaSession' in navigator)) return alert('This browser does not support lock screen controls.');
-    localStorage.setItem('ev_lock', lockOn() ? 'off' : 'on');
-    ui(); sync();
-  };
-
-  // run right after Start / Pause / Resume (inside the tap, so the browser allows the sound)
-  if (dupLock) { window.lsAudio = audio; window.lsSync = sync; setInterval(sync, 1000); }   // old inline copy: this engine takes over its calls
-  else {
-    var orig = window.toggleTimer;
-    if (typeof orig === 'function') window.toggleTimer = function () { var r = orig.apply(this, arguments); sync(); return r; };
-    setInterval(sync, 1000);
-  }
   /* ---------- 4) A running stopwatch belongs to ONE account ---------- */
   var tOwn = function (v) { return v === undefined ? localStorage.getItem('ev_timer_owner') : (v ? localStorage.setItem('ev_timer_owner', v) : localStorage.removeItem('ev_timer_owner')); };
   function guardTimer() {
@@ -354,5 +271,4 @@ body .modal.show>*{animation:evPop .18s ease-out}
     rbtns.appendChild(dbtn);
   }
 
-  ui();
 })();
