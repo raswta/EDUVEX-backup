@@ -5,21 +5,21 @@
   if (window.__evPolish) return; window.__evPolish = 1;
 
   /* ---------- 0) Update notice for THIS file (the old "new version" bar only watches index.html) ---------- */
-  var ADDON_BUILD = '2026-11-22.6';
+  var ADDON_BUILD = '2026-11-22.7';
   var selfSrc = (document.currentScript && document.currentScript.src) || '';
-  async function checkAddon() {
+  async function checkAddon(auto) {
     if (!selfSrc || !navigator.onLine) return;
     try {
       var t = await (await fetch(selfSrc, { cache: 'reload' })).text();
       var m = t.match(/ADDON_BUILD = '([^']+)'/);
       if (!m || m[1] === ADDON_BUILD) return;
-      if (sessionStorage.getItem('ev_upd2') !== m[1]) { sessionStorage.setItem('ev_upd2', m[1]); location.reload(); return; }   // first time: reload by itself
-      var bar = document.getElementById('updBar'); if (bar) bar.classList.remove('hidden');                                      // still old after a reload: show the Update button
+      if (auto && sessionStorage.getItem('ev_upd2') !== m[1]) { sessionStorage.setItem('ev_upd2', m[1]); location.reload(); return; }   // when the app is just being opened: reload by itself, once
+      var bar = document.getElementById('updBar'); if (bar) bar.classList.remove('hidden');                                      // app already open (or still old after a reload): show the Update button
     } catch (e) {}
   }
-  setTimeout(checkAddon, 3000);
-  setInterval(checkAddon, 5 * 60 * 1000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkAddon(); });
+  setTimeout(function () { checkAddon(true); }, 3000);
+  setInterval(function () { checkAddon(false); }, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkAddon(false); });
 
   /* ---------- 1) Notebook look: dark blue, thick outlines, hard shadows (CSS only, every feature stays) ---------- */
   var css = `
