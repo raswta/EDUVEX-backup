@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261126-6">
+<meta name="build" content="20261126-7">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -1716,7 +1716,6 @@ const yesterdayK = () => toYMD(addDays(logicalNow(), -1));
 const uname = () => user.email.split('@')[0];
 const duMine = d => !!user && (d.challenger_id === user.id || d.opponent_id === user.id);
 
-// Exact 3:00 AM timestamp on the day after duel_date
 function threeAmAfterDate(dateStr) {
   const [y, m, day] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, day + 1, DAY_CUT, 0, 0, 0).getTime();
@@ -1729,9 +1728,6 @@ function isStudyingNow(uid) {
   return !!(rm && rm.last_active && (Date.now() - new Date(rm.last_active).getTime() < 20000) && (rm.is_studying || (rm.live_seconds || 0) > 0));
 }
 
-// Settlement rules for yesterday's duel:
-// - If both were still studying, result settles at 3:00 AM of the next study day and stays for 12 hours.
-// - Otherwise, once both have finished, result is announced immediately and stays for 12 hours.
 function yesterdaySettlement(d) {
   if (d.status !== 'accepted' || d.duel_date !== yesterdayK()) {
     return { show: false, settled: false, settledAt: 0, remainingMs: 0 };
@@ -1810,16 +1806,37 @@ function duelRow(d) {
   const st = over ? yesterdaySettlement(d) : null;
   const hrsLeft = st ? Math.max(1, Math.ceil(st.remainingMs / 3600e3)) : 0;
 
-  const side = (s, name, id) => `<div class="flex items-center justify-between gap-2"><span class="truncate">${lead === s ? '🎖️ ' : ''}<b>${esc(name)}</b>${id === user.id ? ' (You)' : ''}</span><span data-dt="${d.id}:${s}" class="font-mono ${lead === s ? 'text-amber-300' : 'text-slate-400'}">${duTime(d, s)}</span></div>`;
+  const side = (s, name, id) => {
+    const isWinner = over && lead === s;
+    const isDraw = over && !lead;
+    const badge = isWinner
+      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 shrink-0">WINNER</span>`
+      : isDraw
+      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 shrink-0">DRAW</span>`
+      : '';
+    return `<div class="flex items-center justify-between gap-2 py-0.5 ${isWinner ? 'bg-amber-500/10 px-2 rounded-lg border border-amber-500/25' : ''}">
+      <span class="flex items-center gap-1.5 min-w-0">
+        <span class="truncate">${lead === s ? '🎖️ ' : ''}<b>${esc(name)}</b>${id === user.id ? ' (You)' : ''}</span>
+        ${badge}
+      </span>
+      <span data-dt="${d.id}:${s}" class="font-mono shrink-0 ${isWinner || lead === s ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${duTime(d, s)}</span>
+    </div>`;
+  };
+
   const tag = future ? `📅 Scheduled · ${fmtY(ymd(d.duel_date))}`
     : over ? (lead
-      ? `🏆 Yesterday's duel winner: ${esc(winName)} (${hms(winSecs)}) · ${hrsLeft}h left`
-      : `🤝 Yesterday's duel: draw (${hms(aSecs)}) · ${hrsLeft}h left`)
+      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)}) · ${hrsLeft}h left`
+      : `🏁 Duel finished · Draw (${hms(aSecs)}) · ${hrsLeft}h left`)
     : '⚔️ In duel';
 
-  return `<div class="rounded-xl border-2 ${mine && !over ? 'border-rose-500/60' : over ? 'border-amber-500/40' : 'border-slate-800'} bg-slate-950 p-2.5 text-xs space-y-1">
-    <div class="flex items-center justify-between gap-2"><span class="text-[11px] font-semibold ${over ? 'text-amber-300' : 'text-rose-300'}">${tag}</span>${mine && !over ? `<button onclick="duelDel('${d.id}')" class="text-slate-500 hover:text-red-400" title="Cancel duel"><i class="fa-solid fa-xmark"></i></button>` : ''}</div>
-    ${side('c', d.challenger_name, d.challenger_id)}${side('o', d.opponent_name, d.opponent_id)}</div>`;
+  return `<div class="rounded-xl border-2 ${mine && !over ? 'border-rose-500/60' : over ? 'border-amber-500/50' : 'border-slate-800'} bg-slate-950 p-2.5 text-xs space-y-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-[11px] font-semibold ${over ? 'text-amber-300' : 'text-rose-300'}">${tag}</span>
+      ${mine && !over ? `<button onclick="duelDel('${d.id}')" class="text-slate-500 hover:text-red-400" title="Cancel duel"><i class="fa-solid fa-xmark"></i></button>` : ''}
+    </div>
+    ${side('c', d.challenger_name, d.challenger_id)}
+    ${side('o', d.opponent_name, d.opponent_id)}
+  </div>`;
 }
 const reqRow = d => `<div class="rounded-xl border-2 border-rose-500/50 bg-slate-950 p-2.5 text-xs flex items-center justify-between gap-2 flex-wrap"><span>⚔️ <b>${esc(d.challenger_name)}</b> challenged you · ${fmtY(ymd(d.duel_date))}</span>
   <span class="flex gap-2"><button onclick="duelAnswer('${d.id}',true)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-medium">Accept</button><button onclick="duelAnswer('${d.id}',false)" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg">Decline</button></span></div>`;
@@ -1834,9 +1851,9 @@ function duelsRender() {
     const acc = list.filter(d => d.status === 'accepted'), inc = list.filter(d => d.status === 'pending' && d.opponent_id === user.id), out = list.filter(d => d.status === 'pending' && d.challenger_id === user.id);
     const now = acc.filter(d => d.duel_date === t), up = acc.filter(d => d.duel_date > t), done = acc.filter(d => d.duel_date < t);
     const sec = (title, arr, fn) => arr.length ? `<div class="text-[11px] font-semibold text-slate-400 pt-1">${title}</div>` + arr.map(fn).join('') : '';
-    const bar = inc.map(reqRow).join('') + now.filter(duMine).map(duelRow).join('');
+    const bar = inc.map(reqRow).join('') + now.filter(duMine).map(duelRow).join('') + done.filter(duMine).map(duelRow).join('');
     $('duelBar').innerHTML = bar; $('duelBar').classList.toggle('hidden', !bar);
-    $('duelList').innerHTML = sec('Requests for you', inc, reqRow) + sec('Sent', out, outRow) + sec('In duel today', now, duelRow) + sec('Scheduled', up, duelRow) + sec("Yesterday's result (up to 12h)", done, duelRow)
+    $('duelList').innerHTML = sec('Requests for you', inc, reqRow) + sec('Sent', out, outRow) + sec('In duel today', now, duelRow) + sec('Scheduled', up, duelRow) + sec('Duel finished (up to 12h)', done, duelRow)
       || '<p class="text-xs text-slate-500 text-center py-2">No duels yet. Challenge someone!</p>';
     $('roomDuels').innerHTML = now.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + now.map(duelRow).join('') : '';
     renderRoom(); renderLB();
