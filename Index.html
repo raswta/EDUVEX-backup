@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDUVEX - Live Study Planner</title>
+<meta name="build" content="20261126-7">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<style>
+body{background:#020617;color:#e2e8f0;margin:0}
+.hidden{display:none}
+.modal{display:none}
+.modal.show{display:flex}
+#boot{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;background:#020617;color:#94a3b8;font:600 14px system-ui,sans-serif}
+#boot b{font-size:26px;letter-spacing:.04em;color:#e2e8f0}
+</style>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EDUVEX">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style type="text/tailwindcss">
+body{font-family:Inter,system-ui,sans-serif}
+.card{@apply bg-slate-900 border border-slate-800 rounded-2xl p-5}
+.inp{@apply w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500}
+.btn{@apply w-full text-white py-2.5 rounded-lg text-sm font-medium transition}
+.tab-btn{@apply px-4 py-2 text-sm font-medium rounded-lg text-slate-400 whitespace-nowrap}
+.tab-btn.on{@apply bg-blue-600 text-white}
+.row{@apply flex justify-between items-center bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs}
+.lbl{@apply block text-xs text-slate-400 mb-1}
+.modal{display:none;@apply fixed inset-0 bg-slate-950/80 z-50 items-center justify-center p-4}
+.modal.show{display:flex}
+.rep{background:#fff;color:#0f172a;font-family:Inter,system-ui,sans-serif;width:794px;padding:32px}
+.rep h1{font-size:22px;font-weight:700}
+.rep h2{font-size:14px;font-weight:700;margin:16px 0 4px}
+.rep table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 14px}
+.rep th{background:#eef2ff;text-align:left;padding:6px 8px;font-weight:600}
+.rep td{border-bottom:1px solid #e2e8f0;padding:6px 8px;vertical-align:top}
+.rep .box{flex:1;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px}
+.rep .box b{display:block;font-size:20px}
+.fire-off{color:#475569}
+.fire-on{color:#f59e0b;filter:drop-shadow(0 0 4px rgba(245,158,11,.55))}
+.fire-blaze{color:#f97316;animation:blaze .8s ease-in-out infinite alternate}
+@keyframes blaze{0%{transform:scale(1) rotate(-3deg);filter:drop-shadow(0 0 6px #f97316) drop-shadow(0 0 14px #ef4444)}100%{transform:scale(1.28) rotate(3deg);filter:drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 30px #ef4444)}}
+.fire-glow{animation:glowbox 1.2s ease-in-out infinite alternate}
+@keyframes glowbox{from{box-shadow:0 0 6px rgba(249,115,22,.35)}to{box-shadow:0 0 22px rgba(239,68,68,.65)}}
+</style>
+<style>
+#focusClock{--w:min(11.5vw,9.5rem);--h:calc(var(--w)*1.45);display:flex;align-items:center;justify-content:center;gap:min(1vw,.6rem)}
+#focusClock.nosec{--w:min(17vw,13.5rem)}
+#focusClock .fl{position:relative;width:var(--w);height:var(--h);perspective:700px;font:700 calc(var(--w)*1.15)/var(--h) ui-monospace,Menlo,Consolas,monospace;color:#f1f5f9}
+#focusClock .fl>div{position:absolute;left:0;right:0;height:50%;overflow:hidden;background:#1e293b;text-align:center;backface-visibility:hidden}
+#focusClock .fl .t{top:0;border-radius:10px 10px 0 0;border-bottom:1px solid #020617}
+#focusClock .fl .b{bottom:0;border-radius:0 0 10px 10px}
+#focusClock .fl span{display:block;height:var(--h);line-height:var(--h)}
+#focusClock .fl .b span{position:relative;top:-100%}
+#focusClock .fl .ft{transform-origin:bottom;animation:ftA .22s ease-in forwards;z-index:2}
+#focusClock .fl .fb{transform-origin:top;transform:rotateX(90deg);animation:fbA .22s .22s ease-out forwards;z-index:2}
+@keyframes ftA{to{transform:rotateX(-90deg)}}@keyframes fbA{to{transform:rotateX(0)}}
+#focusClock.nosec .sec{display:none}
+#focusClock .fc{width:calc(var(--w)*.32);display:flex;align-items:center;justify-content:center;font:700 calc(var(--w)*.9)/1 ui-monospace,monospace;color:#475569}
+</style>
+<style>
+html[data-theme]{--bgc:#0f172a}
+html[data-theme="pink"]{--a3:#d79ab5;--a4:#c9759a;--a5:#a14f73;--a6:#8a3d5f;--a7:#6f2f4a;--ar:161,79,115;--s950:#12080d;--s900:#1f0f18;--s800:#2e1824;--s700:#3d2231;--sb:#33192a;--s950r:18,8,13;--s900r:31,15,24}
+html[data-theme="purple"]{--a3:#b8a0e0;--a4:#9a7fd0;--a5:#7556b3;--a6:#5f4396;--a7:#4a3378;--ar:117,86,179;--s950:#0d0914;--s900:#171126;--s800:#231b38;--s700:#302648;--sb:#2a2142;--s950r:13,9,20;--s900r:23,17,38}
+html[data-theme="green"]{--a3:#8fc4a8;--a4:#66ad88;--a5:#3f8262;--a6:#2f6b4f;--a7:#245640;--ar:63,130,98;--s950:#08100c;--s900:#0f1d16;--s800:#182a21;--s700:#22392d;--sb:#1d3128;--s950r:8,16,12;--s900r:15,29,22}
+html[data-theme] .bg-slate-950,html[data-theme] .inp{background-color:var(--s950)!important}
+html[data-theme] .bg-slate-900,html[data-theme] .card{background-color:var(--s900)!important}
+html[data-theme] .bg-slate-800{background-color:var(--s800)!important}
+html[data-theme] .hover\:bg-slate-700:hover{background-color:var(--s700)!important}
+html[data-theme] .bg-slate-950\/80{background-color:rgba(var(--s950r),.8)!important}
+html[data-theme] .bg-slate-900\/70{background-color:rgba(var(--s900r),.7)!important}
+html[data-theme] .border-slate-800,html[data-theme] .card,html[data-theme] .inp{border-color:var(--sb)!important}
+html[data-theme] .text-blue-300{color:var(--a3)!important}
+html[data-theme] .text-blue-400,html[data-theme] .text-blue-500,html[data-theme] .text-blue-700,html[data-theme] .text-violet-300{color:var(--a4)!important}
+html[data-theme] .bg-blue-600,html[data-theme] .bg-indigo-600{background-color:var(--a6)!important}
+html[data-theme] .bg-blue-500,html[data-theme] .hover\:bg-blue-500:hover,html[data-theme] .hover\:bg-blue-600:hover,html[data-theme] .hover\:bg-indigo-500:hover{background-color:var(--a5)!important}
+html[data-theme] .bg-blue-600\/20,html[data-theme] .bg-violet-600\/20{background-color:rgba(var(--ar),.2)!important}
+html[data-theme] .hover\:bg-blue-600\/30:hover,html[data-theme] .hover\:bg-violet-600\/30:hover{background-color:rgba(var(--ar),.3)!important}
+html[data-theme] .bg-blue-500\/15{background-color:rgba(var(--ar),.15)!important}
+html[data-theme] .bg-blue-500\/10{background-color:rgba(var(--ar),.1)!important}
+html[data-theme] .border-blue-500,html[data-theme] .inp:focus{border-color:var(--a5)!important}
+html[data-theme] .border-blue-500\/40{border-color:rgba(var(--ar),.4)!important}
+html[data-theme] .border-blue-500\/30{border-color:rgba(var(--ar),.3)!important}
+html[data-theme] .from-blue-400,html[data-theme] .from-blue-500,html[data-theme] .from-blue-600,html[data-theme] .hover\:from-blue-500:hover{--tw-gradient-from:var(--a5)!important}
+html[data-theme] .to-indigo-500,html[data-theme] .to-indigo-600,html[data-theme] .to-violet-500,html[data-theme] .hover\:to-indigo-500:hover{--tw-gradient-to:var(--a7)!important}
+html[data-theme] .via-indigo-500{--tw-gradient-stops:var(--tw-gradient-from),var(--a6),var(--tw-gradient-to)!important}
+.thc{width:26px;height:26px;border-radius:9999px;border:2px solid transparent;position:relative;flex:none}
+.thc.on{border-color:#e2e8f0}.thc.lk{opacity:.45}
+</style>
+<script>(function(){try{var t=localStorage.getItem('ev_theme');if(t&&t!=='blue')document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+<div id="boot"><b>EDUVEX</b><span>Loading…</span></div>
+
+<div id="updBar" class="hidden flex fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] bg-blue-600 text-white text-sm rounded-xl shadow-lg px-4 py-3 items-center gap-3">
+  <span>A new version is ready</span><button onclick="applyUpdate()" class="bg-white text-blue-700 font-semibold px-3 py-1 rounded-lg">Update</button>
+</div>
+
+<header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-4 py-3 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">EDUVEX</span>
+  </div>
+  <div id="hdrTools" class="hidden flex items-center gap-2">
+    <button id="conn" onclick="modal('offInfo',1)" class="px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+      <span id="connDot" class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span><span id="connText">Online</span></button>
+    <button onclick="modal('install',1)" class="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 px-3 py-1.5 rounded-lg text-xs font-medium"><i class="fa-solid fa-mobile-screen-button mr-1"></i> Add App</button>
+    <button onclick="focusOn()" class="p-2 rounded-lg bg-violet-600/20 text-violet-300 hover:bg-violet-600/30" title="Focus mode"><i class="fa-solid fa-expand"></i></button>
+    <button onclick="modal('guide',1)" class="p-2 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30"><i class="fa-solid fa-lightbulb"></i></button>
+    <button onclick="modal('settings',1);renderSubjects()" class="p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700" title="Settings"><i class="fa-solid fa-gear"></i></button>
+  </div>
+</header>
+
+<main class="max-w-4xl w-full mx-auto p-4 flex-grow">
+
+<section id="auth" class="hidden max-w-md mx-auto mt-10 card space-y-4">
+  <h2 class="text-2xl font-bold text-center">Welcome to EDUVEX</h2>
+  <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-[11px] text-amber-300">
+    <i class="fa-solid fa-triangle-exclamation"></i> Save your username and password somewhere safe. There is NO password recovery!
+  </div>
+  <div><label class="lbl">Username</label><input id="aUser" class="inp" placeholder="e.g. rasta"></div>
+  <div><label class="lbl">Password (min 6 characters)</label><input id="aPass" type="password" class="inp" onkeydown="if(event.key==='Enter')login()"></div>
+  <div class="flex gap-3">
+    <button onclick="login()" class="btn bg-blue-600 hover:bg-blue-500">Sign In</button>
+    <button onclick="signup()" class="btn bg-slate-800 hover:bg-slate-700">Sign Up</button>
+  </div>
+</section>
+
+<div id="app" class="hidden space-y-6">
+
+  <div class="flex gap-3 items-stretch">
+  <div class="card !p-3 space-y-2 flex-1 min-w-0">
+    <div class="flex flex-wrap justify-between items-center gap-2 text-xs">
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="goalType" class="bg-slate-950 border border-slate-800 rounded px-2 py-1">
+          <option value="daily">Daily Goal:</option><option value="weekly">Weekly Goal:</option>
+        </select>
+        <input id="goalIn" type="number" step="0.1" class="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-blue-400 font-bold text-center">
+        <span class="text-slate-400">hrs</span>
+        <button onclick="saveGoal()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg font-medium">Save Goal</button>
+      </div>
+      <span id="goalText" class="text-blue-400 font-semibold font-mono"></span>
+    </div>
+    <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden"><div id="goalBar" class="bg-blue-500 h-full w-0 transition-all duration-500"></div></div>
+  </div>
+  <button id="streakBtn" onclick="openStreak()" class="w-24 shrink-0 rounded-2xl border border-slate-800 bg-slate-900 flex flex-col items-center justify-center py-2 transition" title="Streak">
+    <img id="fireIcon" src="streak/angry.png" class="w-12 h-12 object-contain" alt="">
+    <span id="streakNum" class="text-lg font-bold leading-tight mt-1">0</span>
+    <span class="text-[10px] text-slate-400 -mt-0.5">days</span>
+  </button>
+  </div>
+
+  <div id="duelBar" class="hidden space-y-2"></div>
+
+  <div id="remBar" class="hidden card !p-3 flex items-center justify-between gap-3 border-blue-500/40">
+    <div class="min-w-0"><div class="text-[10px] text-blue-300"><i class="fa-solid fa-mobile-screen mr-1"></i> Stopwatch on another device</div><div class="flex items-baseline gap-2"><span id="remTime" class="font-mono text-xl font-bold">00:00:00</span><span id="remSub" class="text-[11px] text-slate-400 truncate"></span></div></div>
+    <div class="flex gap-2 shrink-0"><button id="remPause" onclick="remToggle()" class="btn bg-blue-600 hover:bg-blue-500 !py-1.5 !px-3 text-xs"></button><button onclick="remFinish()" class="btn bg-emerald-600 hover:bg-emerald-500 !py-1.5 !px-3 text-xs"><i class="fa-solid fa-check mr-1"></i> Finish</button></div>
+  </div>
+
+  <div class="flex overflow-x-auto gap-2 border-b border-slate-800 pb-2">
+    <button class="tab-btn on" data-t="timerTab" onclick="tab('timerTab')">Timer &amp; Study</button>
+    <button class="tab-btn" data-t="plannerTab" onclick="tab('plannerTab')">Exams &amp; Classes</button>
+    <button class="tab-btn" data-t="testsTab" onclick="tab('testsTab')">Tests</button>
+    <button class="tab-btn" data-t="roomTab" onclick="tab('roomTab')"><span class="flex items-center gap-1.5">Study Room <span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span></span></button>
+    <button class="tab-btn" data-t="chartsTab" onclick="tab('chartsTab')">Charts &amp; Grades</button>
+    <button class="tab-btn" data-t="todoTab" onclick="tab('todoTab')">To-Do</button>
+    <button class="tab-btn" data-t="moreTab" onclick="tab('moreTab')">More</button>
+  </div>
+
+  <!-- TIMER -->
+  <div id="timerTab" class="tab space-y-6">
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-sm font-semibold text-slate-400"><i class="fa-solid fa-stopwatch text-blue-500 mr-1"></i> General Study Timer</h3>
+          <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="pomoOn" onchange="togglePomo()"> Pomodoro</label>
+        </div>
+        <div id="pomoSet" class="hidden grid grid-cols-2 gap-2 mb-3 text-xs">
+          <div><label class="lbl">Study (min)</label><input id="pomoStudy" type="number" value="50" class="inp"></div>
+          <div><label class="lbl">Rest (min)</label><input id="pomoRest" type="number" value="10" class="inp"></div>
+        </div>
+        <label class="lbl">Subject</label>
+        <select id="swSubject" class="inp" onchange="pickSubj('swSubject','swCustom');if(this.value!=='__new')syncSub()"></select>
+        <input id="swCustom" placeholder="New subject name" class="inp hidden mt-2" onchange="syncSub()">
+        <div class="flex gap-2 mt-2">
+          <input id="swTopic" placeholder="Topic (optional)" class="inp min-w-0" onkeydown="if(event.key==='Enter')applyTopic()">
+          <button onclick="applyTopic()" class="bg-blue-600 hover:bg-blue-500 px-4 rounded-lg text-sm font-medium text-white">Set</button>
+        </div>
+        <div id="swTopicNow" class="text-xs text-slate-400 mt-1.5 h-5"></div>
+        <div id="swDisplay" class="text-4xl font-bold font-mono text-center my-4">00:00:00</div>
+        <div id="swStatus" class="text-center text-xs text-blue-400 mb-2 h-4">Ready</div>
+        <div id="swBreak" class="text-xs text-slate-400 space-y-1 mb-3"></div>
+        <div class="flex gap-2">
+          <button id="startBtn" onclick="toggleTimer()" class="btn bg-blue-500 hover:bg-blue-600 flex-1">Start</button>
+          <button id="finishBtn" onclick="modal('confirm',1)" disabled class="btn bg-slate-800 text-slate-500 flex-1">Finish &amp; Save</button>
+        </div>
+      </div>
+      <div class="card space-y-3">
+        <h3 class="text-sm font-semibold text-slate-400"><i class="fa-solid fa-pen-to-square text-orange-500 mr-1"></i> Manual Time Entry</h3>
+        <div><label class="lbl">Subject</label>
+          <select id="manSubject" class="inp" onchange="pickSubj('manSubject','manCustom')"></select>
+          <input id="manCustom" placeholder="New subject name" class="inp hidden mt-2"></div>
+        <div><label class="lbl">Duration (minutes)</label><input id="manMin" type="number" placeholder="45" class="inp"></div>
+        <div><label class="lbl">Short explanation / Reason</label><input id="manReason" type="text" placeholder="e.g. studied offline at library" class="inp"></div>
+        <div><label class="lbl">Date</label><div id="manDate" class="grid grid-cols-3 gap-2"></div></div>
+        <button onclick="saveManual()" class="btn bg-indigo-600 hover:bg-indigo-500">Save Entry</button>
+      </div>
+    </div>
+    <div class="card"><h3 class="text-sm font-semibold text-slate-400 mb-3">Saved Study Logs</h3><div id="sessionsList" class="space-y-2 max-h-60 overflow-y-auto"></div></div>
+  </div>
+
+  <!-- PLANNER -->
+  <div id="plannerTab" class="tab hidden grid md:grid-cols-2 gap-6">
+    <div class="card space-y-3">
+      <h3 class="text-sm font-semibold text-slate-400">Exam Countdown</h3>
+      <input id="exTitle" placeholder="Exam title" class="inp">
+      <select id="exSubject" class="inp"></select>
+      <div id="exDate" class="grid grid-cols-3 gap-2"></div>
+      <textarea id="exTopics" placeholder="Topics" class="inp"></textarea>
+      <button onclick="saveExam()" class="btn bg-blue-600 hover:bg-blue-500">Add Exam</button>
+      <div id="examsList" class="space-y-3 max-h-96 overflow-y-auto"></div>
+    </div>
+    <div class="card space-y-3">
+      <h3 class="text-sm font-semibold text-slate-400">Weekly Classes</h3>
+      <p class="text-[11px] text-slate-500">Classes repeat every week. If a class time changes, edit it (pen): the change counts from this week on and past weeks keep their old time.</p>
+      <input id="clTitle" placeholder="Class title" class="inp">
+      <select id="clSubject" class="inp"></select>
+      <select id="clDay" class="inp"></select>
+      <input id="clDur" type="number" placeholder="Duration in minutes" class="inp">
+      <div><label class="lbl">Starts from</label>
+        <select id="clFrom" class="inp"><option value="0">This week</option><option value="1">Next week</option></select></div>
+      <button onclick="saveClass()" class="btn bg-emerald-500 hover:bg-emerald-600">Add Class</button>
+      <div id="classesList" class="space-y-2 max-h-56 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- TESTS -->
+  <div id="testsTab" class="tab hidden space-y-6">
+    <div class="card space-y-3">
+      <h3 class="text-sm font-semibold text-slate-400"><i class="fa-solid fa-list-check text-blue-500 mr-1"></i> Practice Tests</h3>
+      <p class="text-xs text-slate-400">Optional. Enter how many tests you solved for each subject on a day. Study time from your stopwatch is shown next to each subject.</p>
+      <div><label class="lbl">Day</label><div id="tDate" class="grid grid-cols-3 gap-2"></div></div>
+      <div id="testsList" class="space-y-2"></div>
+      <div class="flex items-center justify-between gap-3 text-xs">
+        <span id="testsTotal" class="text-slate-300"></span>
+        <button onclick="saveTests()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-medium text-white">Save tests</button>
+      </div>
+    </div>
+    <div class="card space-y-3">
+      <div class="flex flex-wrap gap-2 items-center justify-between">
+        <h3 class="text-sm font-semibold text-slate-400">Tests chart</h3>
+        <select id="testView" onchange="renderTestsChart()" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs">
+          <option value="daily">Daily (by subject)</option><option value="weekly">Weekly (day by day)</option></select>
+      </div>
+      <div id="testsSum" class="text-xs text-blue-400 font-mono"></div>
+      <div class="relative h-[260px]"><canvas id="testsChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ROOM -->
+  <div id="roomTab" class="tab hidden space-y-6">
+    <div class="card text-center space-y-3">
+      <h3 class="text-lg font-bold">Shared Live Study Room <span class="inline-flex h-3 w-3 relative align-middle ml-1"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span></h3>
+      <p class="text-xs text-slate-400">You automatically join the room when starting your timer.</p>
+      <div class="flex flex-wrap items-center justify-center gap-4 text-xs">
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="anon" checked onchange="saveRoomPrefs()"> Anonymous Name</label>
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="anonSub" checked onchange="saveRoomPrefs()"> Hide Subject</label>
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="anonCls" checked onchange="saveRoomPrefs()"> Hide Class Time</label>
+      </div>
+      <p class="text-[11px] text-slate-500">Active automatically on timer start. Manual join/leave available at 30+ streak 🎖️</p>
+      <div id="manualRoomBox" class="hidden flex justify-center gap-2 pt-1">
+        <button id="joinBtn" onclick="manualJoin()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-lg text-xs font-medium">Join Room</button>
+        <button id="leaveBtn" onclick="manualLeave()" class="bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded-lg text-xs font-medium">Leave Room</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flex justify-between items-center mb-3"><h4 class="text-sm font-semibold text-slate-400">Active Members</h4>
+        <button onclick="syncRoom();loadLB();duelsLoad()" class="bg-slate-800 px-3 py-1 rounded-lg text-xs"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+      <div id="roomDuels" class="mb-3 space-y-2"></div>
+      <div id="roomList" class="space-y-2"></div>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6 items-start">
+      <div class="card" id="lbCard">
+        <div class="flex justify-between items-center gap-2 cursor-pointer select-none" onclick="toggleLbDrawer()">
+          <h4 class="text-sm font-semibold text-amber-400 flex items-center gap-2">
+            <i class="fa-solid fa-trophy"></i>
+            <span>Leaderboard (by streak)</span>
+          </h4>
+          <button type="button" id="lbArrowBtn" class="bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg text-xs text-slate-300 transition" title="Open / Close">
+            <i id="lbArrowIcon" class="fa-solid fa-chevron-down transition-transform duration-200"></i>
+          </button>
+        </div>
+        <div id="lbDrawer" class="mt-3 space-y-2">
+          <div id="lbList" class="space-y-2"></div>
+        </div>
+      </div>
+      <div class="card" id="duelCard">
+        <div class="flex justify-between items-center mb-3 gap-2">
+          <h4 class="text-sm font-semibold text-rose-400">⚔️ Duel</h4>
+          <button onclick="duelUsers();duelsLoad()" class="bg-slate-800 px-3 py-1 rounded-lg text-xs" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+        <div class="space-y-2">
+          <select id="duelWho" class="inp"><option value="">Choose a person…</option></select>
+          <div class="grid grid-cols-2 gap-2">
+            <select id="duelDay" class="inp"></select>
+            <button onclick="duelSend()" class="btn bg-rose-600 hover:bg-rose-500">Send duel</button>
+          </div>
+          <p class="text-[11px] text-slate-500">Pick anyone with an account and a day (today up to 3 days ahead). If they accept, whoever studies more with the stopwatch that day wins. Everyone can watch.</p>
+        </div>
+        <div id="duelList" class="space-y-2 mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div id="chartsTab" class="tab hidden space-y-6">
+    <div class="card !p-4 flex flex-wrap gap-3 items-center text-xs">
+      <span class="font-medium">Review Archive:</span>
+      <select id="weekSel" onchange="renderCharts()" class="bg-slate-950 border border-slate-800 rounded px-2 py-1"></select>
+      <select id="monthSel" onchange="renderCharts()" class="bg-slate-950 border border-slate-800 rounded px-2 py-1"></select>
+      <span id="monthRange" class="text-blue-400 font-mono"></span>
+    </div>
+    <div class="card !p-4 space-y-3">
+      <h3 class="text-xs font-semibold text-amber-400"><i class="fa-solid fa-star mr-1"></i> Log Exam Score</h3>
+      <div class="grid md:grid-cols-5 gap-3 text-xs">
+        <input id="gTitle" placeholder="Exam title" class="inp">
+        <input id="gScore" type="number" placeholder="Score" class="inp">
+        <input id="gMax" type="number" value="100" placeholder="Max score" class="inp">
+        <div id="gDate" class="grid grid-cols-3 gap-1"></div>
+        <button onclick="saveGrade()" class="bg-amber-600 hover:bg-amber-500 rounded-lg font-medium py-2">Save Grade</button>
+      </div>
+    </div>
+    <div class="card !p-3 flex flex-wrap gap-3 items-center justify-between text-xs">
+      <select id="chartMode" onchange="renderCharts()" class="bg-slate-950 border border-slate-800 rounded px-2 py-1">
+        <option value="stacked">Stacked (by subject)</option><option value="total">Total hours line</option></select>
+      <label class="text-emerald-400 cursor-pointer"><input type="checkbox" id="layerClasses" checked onchange="renderCharts()"> Classes layer</label>
+      <label class="text-amber-400 cursor-pointer"><input type="checkbox" id="layerGrades" checked onchange="renderCharts()"> Grades overlay</label>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="card"><h3 class="text-sm font-semibold text-slate-400 mb-2">Weekly (Saturday to Friday)</h3><div class="relative h-[260px]"><canvas id="weeklyChart"></canvas></div></div>
+      <div class="card"><h3 class="text-sm font-semibold text-slate-400 mb-2">Monthly (day by day) &amp; grades</h3><div class="relative h-[260px]"><canvas id="monthlyChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- TODO -->
+  <div id="todoTab" class="tab hidden space-y-6">
+    <div class="card space-y-3">
+      <h3 class="text-sm font-semibold text-slate-400"><i class="fa-solid fa-square-check text-emerald-500 mr-1"></i> To-Do List (today)</h3>
+      <p class="text-xs text-slate-400">Only for today. It stays on this device and is deleted automatically when the day ends.</p>
+      <div class="flex gap-2">
+        <input id="tdIn" class="inp min-w-0" placeholder="Add a task" onkeydown="if(event.key==='Enter')todoAdd()">
+        <button onclick="todoAdd()" class="bg-blue-600 hover:bg-blue-500 px-4 rounded-lg text-white" title="Add"><i class="fa-solid fa-plus"></i></button>
+      </div>
+      <div id="tdList" class="space-y-2"></div>
+      <div id="tdCount" class="text-xs text-slate-400"></div>
+    </div>
+  </div>
+
+  <!-- MORE -->
+  <div id="moreTab" class="tab hidden space-y-6">
+    <div class="card space-y-4">
+      <h3 class="text-sm font-semibold text-slate-400"><i class="fa-solid fa-file-pdf text-red-400 mr-1"></i> Download summary (PDF)</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="lbl">Summary type</label>
+          <select id="repKind" onchange="fillPeriods()" class="inp"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="range">Certain period</option></select></div>
+        <div id="repPerBox"><label class="lbl">Period</label><select id="repPeriod" class="inp"></select></div>
+        <div id="repRangeBox" class="hidden col-span-2"><label class="lbl">From → To</label><div class="space-y-2"><div class="flex items-center gap-2"><span class="text-[11px] text-slate-400 w-9 shrink-0">From</span><div id="repFrom" class="grid grid-cols-3 gap-1.5 flex-1"></div></div><div class="flex items-center gap-2"><span class="text-[11px] text-slate-400 w-9 shrink-0">To</span><div id="repTo" class="grid grid-cols-3 gap-1.5 flex-1"></div></div></div></div>
+      </div>
+      <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" id="repClasses" checked> Include classes in hours and charts</label>
+      <label id="repTodoBox" class="hidden flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" id="repTodo"> Include today's to-do list</label>
+      <button onclick="openReport()" class="btn bg-blue-600 hover:bg-blue-500"><i class="fa-solid fa-eye mr-1"></i> Preview summary</button>
+    </div>
+
+    <div class="rounded-2xl p-[1px] bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500">
+      <div class="rounded-2xl bg-slate-900 p-5 space-y-4 text-center">
+        <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30"><i class="fa-solid fa-comment-dots text-2xl text-white"></i></div>
+        <div>
+          <h3 class="text-base font-bold text-slate-100">Contact me</h3>
+          <p class="text-xs text-slate-400 mt-1">for rating / recommendations / troubles (bugs)</p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2 text-[11px]">
+          <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/25"><i class="fa-solid fa-star mr-1"></i> Rating</span>
+          <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/25"><i class="fa-solid fa-lightbulb mr-1"></i> Recommendations</span>
+          <span class="px-3 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/25"><i class="fa-solid fa-bug mr-1"></i> Bugs</span>
+        </div>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSf-Lr5hlPesAjzwdNtDLYZ86TLvm9zhnC80moeNW99FeX4GZA/viewform?usp=dialog" target="_blank" rel="noopener" class="btn block text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500">Open the form <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i></a>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-400">
+  Made by <a href="https://raswta.carrd.co" target="_blank" class="text-blue-400 font-semibold">raswta</a> · v7
+</footer>
+
+<div id="focus" class="hidden fixed inset-0 z-[45] bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6 gap-6 sm:gap-8">
+  <div class="flex flex-wrap items-center justify-center gap-6 sm:gap-8 w-full">
+    <div id="focusClock"></div>
+    <div id="focusRoomBox" class="w-56 max-w-full bg-slate-900/70 border border-slate-800 rounded-2xl p-3">
+      <div class="text-[11px] text-slate-400 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-users"></i> Study Room</div>
+      <div id="focusRoom" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
+    </div>
+  </div>
+  <button id="roomBtn" onclick="toggleRoomBox()" class="absolute top-6 left-6 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium"></button>
+  <button id="secBtn" onclick="toggleSec()" class="absolute top-6 right-6 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium"></button>
+  <button onclick="focusOff()" class="absolute bottom-8 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium"><i class="fa-solid fa-compress mr-1"></i> Exit focus mode</button>
+</div>
+<div id="streakModal" class="modal"><div class="card max-w-sm w-full space-y-4 text-center relative">
+  <button onclick="modal('streakModal',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <div class="py-2 flex justify-center"><img id="streakBig" src="streak/angry.png" class="w-24 h-24 object-contain" alt=""></div>
+  <div><span id="streakCount" class="text-4xl font-bold">0</span> <span class="text-slate-400">day streak</span></div>
+  <p id="streakNote" class="text-xs text-slate-300"></p>
+  <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 text-[11px] text-amber-300 text-left"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Warning:</b> the first <b>2 days</b> of a streak count with any stopwatch time. Days <b>3 to 7</b> need <b>more than 3 hours</b>. From day <b>8</b> on you need <b>more than 5 hours</b> a day (stopwatch time). Your weekly classes are added to that time, but manual entries never count.</div>
+  <div class="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-2.5 text-[11px] text-emerald-300">
+    <i class="fa-solid fa-medal mr-1"></i> <b>30 Days Perk:</b> Unlocks manual join/leave room controls!
+  </div>
+  <div id="streakLevels" class="flex justify-between gap-1"></div>
+  <div class="text-xs text-slate-400">Best streak: <b id="streakBest" class="text-slate-200">0</b> days</div>
+  <div class="text-left">
+    <label class="lbl">Day off (rest day)</label>
+    <select id="restDay" onchange="setRestDay()" class="inp"></select>
+    <p class="text-[11px] text-slate-500 mt-2">On your day off, not studying (or not reaching your goal) will not break the streak. If you study that day it still counts. When you reach your daily goal, the character glows.</p>
+  </div>
+  <button onclick="modal('streakModal',0)" class="btn bg-blue-600 hover:bg-blue-500">Got it!</button>
+</div></div>
+<div id="settings" class="modal"><div class="card max-w-md w-full space-y-5 max-h-[85vh] overflow-y-auto relative">
+  <button onclick="modal('settings',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <h3 class="text-base font-bold text-slate-200"><i class="fa-solid fa-gear mr-1"></i> Settings</h3>
+  <div class="flex items-center gap-3"><span class="text-xs font-semibold text-slate-300">Theme</span><div id="themeRow" class="flex items-center gap-2"></div></div>
+  <p id="themeNote" class="hidden text-[11px] text-slate-500 -mt-3">More themes unlock when you reach a 15-day streak.</p>
+  <div>
+    <p class="lbl"><i class="fa-solid fa-calendar-days mr-1"></i> Calendar type (all dates on the site)</p>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="calS" onclick="setCal('shamsi')" class="btn">Shamsi</button>
+      <button id="calG" onclick="setCal('gregorian')" class="btn">Gregorian</button>
+    </div>
+  </div>
+  <div>
+    <p class="lbl"><i class="fa-solid fa-book mr-1"></i> Subjects (stopwatch, manual entries, classes)</p>
+    <div id="subjList" class="space-y-2 mb-3"></div>
+    <div class="flex gap-2"><input id="newSubj" class="inp" placeholder="Add a new subject" onkeydown="if(event.key==='Enter')addSubj()">
+      <button onclick="addSubj()" class="bg-blue-600 hover:bg-blue-500 px-4 rounded-lg" title="Add"><i class="fa-solid fa-plus"></i></button></div>
+  </div>
+  <div>
+    <p class="lbl"><i class="fa-solid fa-bell mr-1"></i> Stopwatch reminders</p>
+    <button id="pushBtn" onclick="pushToggle()" class="btn"></button>
+    <p class="text-[11px] text-slate-500 mt-2">If you forget the stopwatch is running, you get a message after 10 minutes and again after 30 minutes. Nothing more after that.</p>
+    <p id="pushInfo" class="text-[11px] text-slate-400 mt-2"></p>
+    <button onclick="pushTest()" class="btn bg-slate-800 hover:bg-slate-700 mt-2"><i class="fa-solid fa-paper-plane mr-1"></i> Send test notification</button>
+  </div>
+  <div>
+    <p class="lbl"><i class="fa-solid fa-key mr-1"></i> Change password</p>
+    <div class="space-y-2">
+      <div class="relative"><input id="cpOld" type="password" class="inp !pr-9" placeholder="Current password" autocomplete="current-password"><button type="button" onclick="togglePw('cpOld',this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 px-1" title="Show / hide"><i class="fa-solid fa-eye"></i></button></div>
+      <div class="relative"><input id="cpNew" type="password" class="inp !pr-9" placeholder="New password (min 6 characters)" autocomplete="new-password"><button type="button" onclick="togglePw('cpNew',this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 px-1" title="Show / hide"><i class="fa-solid fa-eye"></i></button></div>
+      <button onclick="changePassword()" class="btn bg-slate-800 hover:bg-slate-700">Change password</button>
+    </div>
+  </div>
+  <button id="logoutBtn" onclick="logout()" class="hidden btn bg-slate-800 hover:bg-slate-700 !text-red-400"><i class="fa-solid fa-right-from-bracket mr-1"></i> Logout</button>
+</div></div>
+<div id="clEdit" class="modal"><div class="card max-w-sm w-full space-y-3">
+  <h3 class="text-base font-bold text-slate-200"><i class="fa-solid fa-pen mr-1"></i> Edit class</h3>
+  <input type="hidden" id="ceId">
+  <div><label class="lbl">Class title</label><input id="ceTitle" class="inp"></div>
+  <div><label class="lbl">Subject</label><select id="ceSubject" class="inp"></select></div>
+  <div><label class="lbl">Day</label><select id="ceDay" class="inp"></select></div>
+  <div><label class="lbl">Duration (minutes)</label><input id="ceDur" type="number" class="inp"></div>
+  <p class="text-[11px] text-slate-400">The change counts from <b>this week</b> on. Past weeks keep the old time.</p>
+  <div class="flex gap-3"><button onclick="modal('clEdit',0)" class="btn bg-slate-800 hover:bg-slate-700">Cancel</button><button onclick="clEditSave()" class="btn bg-emerald-600 hover:bg-emerald-500">Save</button></div>
+</div></div>
+<div id="offInfo" class="modal"><div class="card max-w-sm w-full space-y-4 relative">
+  <button onclick="modal('offInfo',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <h3 class="text-base font-bold text-blue-400">Connection Status Info</h3>
+  <p class="text-xs text-slate-300 leading-relaxed">When you are <b>Offline</b> you cannot join the live study room, but your sessions, timers and manual entries are saved on this device. As soon as you reconnect, everything syncs to your account automatically.</p>
+  <button onclick="modal('offInfo',0)" class="btn bg-blue-600 hover:bg-blue-500">Got it!</button>
+</div></div>
+<div id="install" class="modal"><div class="card max-w-md w-full space-y-4 relative">
+  <button onclick="modal('install',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <h3 class="text-lg font-bold text-emerald-400">Add to Home Screen</h3>
+  <p class="text-xs text-slate-300 leading-relaxed">iOS Safari: tap Share, then Add to Home Screen.<br>Android Chrome: tap Menu (⋮), then Add to Home screen.</p>
+</div></div>
+<div id="confirm" class="modal"><div class="card max-w-sm w-full text-center space-y-4"><div class="text-amber-400 text-4xl"><i class="fa-solid fa-circle-exclamation"></i></div>
+  <h3 class="text-lg font-bold">Save &amp; Reset Timer?</h3>
+  <p class="text-xs text-slate-300">Your time will be saved to your logs and the stopwatch will reset.</p>
+  <div class="flex gap-3"><button onclick="modal('confirm',0)" class="btn bg-slate-800">Cancel</button><button onclick="finishTimer()" class="btn bg-blue-600">Yes, Save</button></div>
+</div></div>
+<div id="timerOff" class="modal"><div class="card max-w-sm w-full text-center space-y-4"><div class="text-amber-400 text-4xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+  <h3 class="text-lg font-bold">Timer is stopped</h3><p class="text-xs text-slate-300">Start your timer before joining the live room.</p>
+  <button onclick="modal('timerOff',0);tab('timerTab')" class="btn bg-blue-600">Go to Timer</button>
+</div></div>
+<div id="pomoAlert" class="modal"><div class="card max-w-sm w-full text-center space-y-4"><div class="text-5xl text-amber-400 animate-bounce"><i class="fa-solid fa-bell"></i></div>
+  <h3 id="pomoTitle" class="text-2xl font-bold"></h3><p id="pomoDesc" class="text-sm text-slate-300"></p>
+  <button onclick="modal('pomoAlert',0)" class="btn bg-blue-600">Continue</button>
+</div></div>
+<div id="repModal" class="modal"><div class="w-full max-w-3xl max-h-[92vh] flex flex-col gap-3">
+  <div class="flex gap-3"><button id="repDl" onclick="downloadPdf()" class="btn bg-blue-600 hover:bg-blue-500"><i class="fa-solid fa-download mr-1"></i> Download PDF</button>
+    <button onclick="modal('repModal',0)" class="btn bg-slate-800 hover:bg-slate-700">Close</button></div>
+  <div class="overflow-auto rounded-xl bg-white"><div id="rep" class="rep"></div></div>
+</div></div>
+<div id="presence" class="modal"><div class="card max-w-sm w-full text-center space-y-4">
+  <div class="text-amber-400 text-5xl"><i class="fa-solid fa-user-clock"></i></div>
+  <h3 class="text-xl font-bold">Are you still studying?</h3>
+  <p class="text-sm text-slate-300 leading-relaxed">Your stopwatch has been running for a long time without any activity. Tap the button within <b id="presLeft" class="text-amber-300 font-mono">10:00</b> to keep it going. If you do not, it will pause and the waiting time will not be counted.</p>
+  <button onclick="presenceYes()" class="btn bg-emerald-600 hover:bg-emerald-500">Yes, I am still studying</button>
+</div></div>
+<div id="presStop" class="modal"><div class="card max-w-sm w-full text-center space-y-4">
+  <div class="text-slate-300 text-5xl"><i class="fa-solid fa-circle-pause"></i></div>
+  <h3 class="text-lg font-bold">Stopwatch paused</h3>
+  <p id="presStopMsg" class="text-xs text-slate-300 leading-relaxed"></p>
+  <button onclick="modal('presStop',0)" class="btn bg-blue-600 hover:bg-blue-500">OK</button>
+</div></div>
+<div id="notif" class="modal"><div class="card max-w-sm w-full text-center space-y-4">
+  <div class="text-emerald-400 text-5xl"><i class="fa-solid fa-bell"></i></div>
+  <h3 class="text-xl font-bold">Turn on reminders?</h3>
+  <p class="text-sm text-slate-300 leading-relaxed">If you forget that the stopwatch is running, EDUVEX will send you a message after <b>10 minutes</b> and again after <b>30 minutes</b> to tell you it is still on. After that, no more messages. It works even when the app is closed.</p>
+  <p class="text-[11px] text-slate-500">iPhone / iPad: this only works if you added EDUVEX to your Home Screen and opened it from that icon.</p>
+  <div class="flex gap-3"><button onclick="notifAnswer(false)" class="btn bg-slate-800 hover:bg-slate-700">No, thanks</button><button onclick="notifAnswer(true)" class="btn bg-emerald-600 hover:bg-emerald-500">Turn on</button></div>
+</div></div>
+<div id="guide" class="modal"><div class="card max-w-xl w-full space-y-3 text-xs text-slate-300 leading-relaxed max-h-[85vh] overflow-y-auto relative">
+  <button onclick="modal('guide',0)" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <h3 class="text-base font-bold text-blue-400"><i class="fa-solid fa-lightbulb mr-1"></i> EDUVEX Complete Guide</h3>
+  <a href="https://t.me/EDUVEXtut" target="_blank" rel="noopener" class="block text-center rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 py-2 font-semibold hover:bg-blue-600/30"><i class="fa-solid fa-images mr-1"></i> Illustrated step-by-step guide (with pictures): t.me/EDUVEXtut</a>
+  <p><b><i class="fa-solid fa-bullseye text-blue-400 mr-1"></i> Goal bar:</b> choose Daily or Weekly, type your target hours (12.5 means 12 hours 30 minutes) and press Save Goal. The bar counts your study sessions plus your weekly classes.</p>
+  <p><b><i class="fa-solid fa-fire text-orange-400 mr-1"></i> Streak:</b> the character next to the goal bar counts your days in a row. It is angry until you start studying today, and it glows when you reach your daily goal. Tap it to choose a weekly day off that never breaks your streak.</p>
+  <p><b>⚔️ Duel:</b> challenge any user for today up to 3 days ahead. Yesterday's duel result stays visible for up to 12 hours after completion (at 3:00 AM if both were studying, or immediately when both finish).</p>
+  <button onclick="modal('guide',0)" class="btn bg-blue-600">Got it!</button>
+</div></div>
+
+<script>
+const sb = supabase.createClient("https://kuescglkkpvsqqxnubww.supabase.co", "sb_publishable_su-MHh5kE2EuainNOAGuJA_EP0p7Mrb");
+const BUILD = (document.querySelector('meta[name="build"]') || {}).content;
+const VAPID_PUBLIC = 'BMrEAnSHAO645NCUWQheW_MQM9EmLPcNkRFuFxi3T02KjkAo_ZO56qbpvPDWWVCngfIDtjUz3UpnRwV78vJ9Tvg';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAY = 864e5;
+const DAYS = ['Saturday (Shanbeh)','Sunday (Yekshanbeh)','Monday (Doshanbeh)','Tuesday (Seshanbeh)','Wednesday (Chaharshanbeh)','Thursday (Panjshanbeh)','Friday (Jomeh)'];
+const DAYSF = ['Shanbeh','Yekshanbeh','Doshanbeh','Seshanbeh','Chaharshanbeh','Panjshanbeh','Jomeh'];
+const DAYSE = ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'];
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#ef4444','#14b8a6','#a855f7'];
+const LS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+
+let user = null, running = false, base = 0, lastTick = 0, tInt = null, roomInt = null;
+let inRoom = false, pomo = false, pState = 'study', pLeft = 0, alerted = {};
+let wChart = null, mChart = null, starts = [];
+let segs = {}, tops = {}, tseg = {}, curSub = 'General Study', runId = null;
+let focusActive = false, wakeLock = null, roomRows = [], roomAt = 0, pushErr = '', presenceSecs = 0, askOpen = false;
+const PRES_EVERY = 3 * 3600, PRES_GRACE = 10 * 60;
+let subjects = LS('ev_subjects', ['General Study','Physics','Mathematics','Chemistry','Biology']);
+let goalType = localStorage.getItem('ev_goal_type') || 'daily';
+let goalVal = parseFloat(localStorage.getItem('ev_goal_val')) || (goalType === 'weekly' ? 70 : 10);
+let D = { sessions: [], classes: [], exams: [], grades: [], tests: [], days: [] };
+
+const color = s => COLORS[subjects.indexOf(s) % COLORS.length] || '#64748b';
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const dayIdx = d => (d.getDay() + 1) % 7;
+function weekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - dayIdx(x)); return x; }
+
+// ---------- Calendar helpers ----------
+let CAL = localStorage.getItem('ev_cal') === 'gregorian' ? 'gregorian' : 'shamsi';
+const PM = ['Farvardin','Ordibehesht','Khordad','Tir','Mordad','Shahrivar','Mehr','Aban','Azar','Dey','Bahman','Esfand'];
+const GM = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MN = () => CAL === 'shamsi' ? PM : GM;
+const pp = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', { year: 'numeric', month: 'numeric', day: 'numeric' });
+function pj(d) { const o = {}; pp.formatToParts(d).forEach(x => o[x.type] = +x.value); return { y: o.year, m: o.month, d: o.day }; }
+const pc = d => CAL === 'shamsi' ? pj(d) : { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+const fmt = d => { const p = pc(d), n = MN()[p.m - 1]; return `${p.d} ${CAL === 'shamsi' ? n : n.slice(0, 3)}`; };
+const toYMD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const ymd = str => new Date(str + 'T12:00:00');
+
+// ---------- Study day (3:00 AM cutoff) ----------
+const DAY_CUT = 3;
+const logicalNow = () => new Date(Date.now() - DAY_CUT * 3600e3);
+const shiftD = d => new Date(new Date(d).getTime() - DAY_CUT * 3600e3);
+const dayKey = d => toYMD(shiftD(d));
+const dayStart = () => { const x = logicalNow(); x.setHours(DAY_CUT, 0, 0, 0); return x; };
+
+function fromJ(y, m, d) {
+  let t = new Date(y + 621, 1, 20, 12), best = null;
+  for (let i = 0; i < 430; i++) {
+    const p = pj(t);
+    if (p.y === y && p.m === m && p.d <= d) best = t;
+    if (best && (p.y > y || (p.y === y && p.m > m))) break;
+    t = addDays(t, 1);
+  }
+  return best || new Date();
+}
+const fromC = (y, m, d) => CAL === 'shamsi' ? fromJ(y, m, d) : new Date(y, m - 1, Math.min(d, new Date(y, m, 0).getDate()), 12);
+function mkPicker(id, date, back) {
+  const t = pc(date || new Date()), now = pc(new Date()), c = 'class="inp !px-1.5"';
+  const yr = back ? Array.from({ length: back + 1 }, (_, i) => now.y - i) : [now.y - 1, now.y, now.y + 1, now.y + 2];
+  const years = [...new Set([...yr, t.y])].sort();
+  $(id).innerHTML =
+    `<select ${c}>${years.map(y => `<option ${y === t.y ? 'selected' : ''}>${y}</option>`).join('')}</select>` +
+    `<select ${c}>${MN().map((n, i) => `<option value="${i + 1}" ${i + 1 === t.m ? 'selected' : ''}>${n}</option>`).join('')}</select>` +
+    `<select ${c}>${Array.from({ length: 31 }, (_, i) => `<option ${i + 1 === t.d ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`;
+}
+function pickGet(id) { const [y, m, d] = [...$(id).children].map(e => +e.value); return toYMD(fromC(y, m, d)); }
+function pMonthStart(d) { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - (pj(x).d - 1)); return x; }
+const pMonthEnd = s => pMonthStart(new Date(s.getTime() + 33 * DAY));
+const mStart = d => CAL === 'shamsi' ? pMonthStart(d) : new Date(d.getFullYear(), d.getMonth(), 1, 12);
+const mEnd = s => CAL === 'shamsi' ? pMonthEnd(s) : new Date(s.getFullYear(), s.getMonth() + 1, 1, 12);
+function calUI() {
+  $('calS').className = 'btn ' + (CAL === 'shamsi' ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
+  $('calG').className = 'btn ' + (CAL === 'gregorian' ? 'bg-blue-600' : 'bg-slate-800 hover:bg-slate-700');
+}
+function setCal(k) {
+  const ids = ['manDate', 'exDate', 'gDate', 'tDate'], keep = ids.map(id => ymd(pickGet(id)));
+  const rf = ymd(pickGet('repFrom')), rt = ymd(pickGet('repTo'));
+  CAL = k; localStorage.setItem('ev_cal', k);
+  ids.forEach((id, i) => mkPicker(id, keep[i]));
+  mkPicker('repFrom', rf, 3); mkPicker('repTo', rt, 3);
+  const w = $('weekSel').value; initArchive(); $('weekSel').value = w;
+  calUI(); renderLists(); renderCharts(); fillPeriods(); renderTests();
+  duelFillDays(); duSig = ''; duelsRender();
+}
+
+// ---------- Weekly classes ----------
+const wkKey = d => toYMD(weekStart(d));
+const clActive = (c, wk) => (!c.start_date || c.start_date <= wk) && (!c.end_date || c.end_date >= wk);
+const classesOn = d => { const wk = wkKey(d), dw = d.getDay(); return D.classes.filter(c => +c.day_of_week === dw && clActive(c, wk)); };
+const classMins = d => classesOn(d).reduce((a, c) => a + (+c.duration_minutes || 0), 0);
+
+// ---------- UI helpers ----------
+function modal(id, show) { $(id).classList.toggle('show', !!show); }
+function tab(id) {
+  document.querySelectorAll('.tab').forEach(e => e.classList.add('hidden'));
+  $(id).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.t === id));
+  if (id === 'chartsTab') renderCharts();
+  if (id === 'roomTab') { checkStreakPerks(); syncRoom(); loadLB(); duelFillDays(); duelUsers(); duelsLoad(); }
+  if (id === 'testsTab') renderTests();
+  if (id === 'todoTab') todoRender();
+  if (id === 'moreTab') fillPeriods();
+}
+function status() {
+  const on = navigator.onLine;
+  $('conn').className = 'px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 border ' + (on ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-amber-500/10 text-amber-400 border-amber-500/25');
+  $('connDot').className = 'h-2 w-2 rounded-full ' + (on ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500');
+  $('connText').textContent = on ? 'Online' : 'Offline';
+}
+
+// ---------- Data layer ----------
+const Q = () => LS('ev_queue', []);
+const setQ = q => localStorage.setItem('ev_queue', JSON.stringify(q));
+
+async function save(table, row, conflict) {
+  row.user_id = user.id;
+  if (navigator.onLine) {
+    const { error } = await (conflict ? sb.from(table).upsert(row, { onConflict: conflict }) : sb.from(table).insert(row));
+    if (!error) return true;
+    console.error(table, error);
+    alert('Server save failed: ' + error.message + '\nSaved on this device for now.');
+  }
+  setQ([...Q(), { table, row, conflict }]);
+  return false;
+}
+async function sync() {
+  if (!user || !navigator.onLine) return;
+  const rest = [];
+  for (const it of Q()) {
+    if (it.row.user_id !== user.id) { rest.push(it); continue; }
+    const { error } = await (it.conflict ? sb.from(it.table).upsert(it.row, { onConflict: it.conflict }) : sb.from(it.table).insert(it.row));
+    if (error) { console.error('sync', error); rest.push(it); }
+  }
+  setQ(rest);
+}
+let oldLoaded = false;
+const winStart = () => new Date(Date.now() - 35 * 864e5);
+async function rows(table, cacheOnly) {
+  const key = `ev_c_${user.id}_${table}`;
+  let r = LS(key, []);
+  if (navigator.onLine && !cacheOnly) {
+    const fetchAll = async () => {
+      let data = [], error = null;
+      for (let i = 0; ; i += 1000) {
+        let q = sb.from(table).select('*').eq('user_id', user.id);
+        if (table === 'study_sessions' && !oldLoaded) q = q.gte('created_at', winStart().toISOString());
+        const resp = await q.order('id').range(i, i + 999);
+        if (resp.error) { error = resp.error; break; }
+        data = data.concat(resp.data || []); if ((resp.data || []).length < 1000) break;
+      }
+      return { data, error };
+    };
+    let res = await fetchAll();
+    if (!res.error && !res.data.length && r.length) {
+      try { await Promise.race([sb.auth.getSession(), new Promise(x => setTimeout(x, 3000))]); } catch (e) {}
+      await new Promise(x => setTimeout(x, 800));
+      res = await fetchAll();
+    }
+    if (res.error) console.error('load ' + table, res.error); else { r = res.data || []; localStorage.setItem(key, JSON.stringify(r)); }
+  }
+  const all = [...r, ...Q().filter(i => i.table === table && i.row.user_id === user.id).map(i => ({ ...i.row, _local: 1, _qi: Q().indexOf(i) }))];
+  if (table !== 'study_tests') return all;
+  const m = {}; all.forEach(t => { m[t.test_date + '|' + t.subject] = t; });
+  return Object.values(m);
+}
+async function del(table, id) {
+  if (!confirm('Delete this item?')) return;
+  const { data, error } = await sb.from(table).delete().eq('id', id).eq('user_id', user.id).select();
+  if (error) return alert('Error: ' + error.message);
+  if (!data || !data.length) return alert('Could not delete this item.');
+  refresh();
+}
+function delQ(t, i) {
+  if (!confirm('Delete this item?')) return;
+  const q = Q(); if (q[i] && q[i].table === t) q.splice(i, 1); setQ(q); refresh();
+}
+let refreshSeq = 0, dataLoaded = false;
+const TABLES = ['study_sessions', 'classes', 'exams', 'exam_grades', 'study_tests'];
+function applyData(got, days) {
+  [D.sessions, D.classes, D.exams, D.grades, D.tests] = got; D.days = days;
+  D.sessions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  D.sessions.forEach(s => { if (s.subject && !subjects.includes(s.subject)) subjects.push(s.subject); });
+  D.classes.forEach(c => { if (c.subject && !subjects.includes(c.subject)) subjects.push(c.subject); });
+  localStorage.setItem('ev_subjects', JSON.stringify(subjects));
+}
+function renderAll() {
+  for (const f of [fillSubjects, renderGoal, renderLists, renderSubjects, renderCharts, renderTests]) {
+    try { f(); } catch (e) { console.error('render ' + f.name, e); }
+  }
+}
+async function showCached() {
+  if (!user || dataLoaded) return;
+  try {
+    const got = await Promise.all(TABLES.map(t => rows(t, true)));
+    if (dataLoaded) return;
+    applyData(got, LS('ev_days_' + user.id, [])); renderAll();
+  } catch (e) { console.error('cached', e); }
+}
+async function refresh() {
+  if (!user) return;
+  const my = ++refreshSeq;
+  try {
+    await sync(); pushFlush();
+    try { await Promise.race([sb.auth.getSession(), new Promise(x => setTimeout(x, 4000))]); } catch (e) {}
+    const got = await Promise.all(TABLES.map(t => rows(t)));
+    let days; const oldDays = LS('ev_days_' + user.id, []);
+    try {
+      const r = await sb.from('daily_summary').select('day,minutes').eq('user_id', user.id);
+      if (!r.error && ((r.data || []).length || !oldDays.length)) { days = r.data || []; localStorage.setItem('ev_days_' + user.id, JSON.stringify(days)); } else days = oldDays;
+    } catch (e) { days = oldDays; }
+    if (my !== refreshSeq) return;
+    applyData(got, days); dataLoaded = true;
+  } catch (e) { console.error('refresh load', e); }
+  renderAll();
+  duelsLoad();
+}
+
+// ---------- Auth ----------
+const mail = u => `${u.trim().toLowerCase()}@studyapp.local`;
+async function signup() {
+  const u = $('aUser').value, p = $('aPass').value;
+  if (!u.trim() || p.length < 6) return alert('Enter a username and a password of at least 6 characters');
+  const { data, error } = await sb.auth.signUp({ email: mail(u), password: p });
+  if (error) return alert(error.message);
+  if (data.session) { user = data.user; onLogin(); } else alert('Signed up! Now press Sign In.');
+}
+async function login() {
+  const { data, error } = await sb.auth.signInWithPassword({ email: mail($('aUser').value), password: $('aPass').value });
+  if (error) return alert(error.message);
+  user = data.user; onLogin();
+}
+async function logout() { await leaveRoom(); await sb.auth.signOut(); location.reload(); }
+function onLogin() {
+  $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); $('logoutBtn').classList.remove('hidden'); $('hdrTools').classList.remove('hidden');
+  loadRoomPrefs(); todoLoad(); applyLbDrawer();
+  if (running || base > 0) {
+    inRoom = true;
+    syncRoom();
+  } else {
+    leaveRoom();
+  }
+  showCached();
+  autoSaveForgotten().then(saved => { if (!saved) refresh(); });
+  remotePull();
+  setInterval(() => {
+    if (document.hidden) return;
+    const busy = running || base > 0 || !!remote;
+    if (Date.now() - pullLast >= (busy ? 9500 : 59500)) remotePull();
+  }, 5000);
+  setTimeout(() => { if (running) remotePush(); }, 4000);
+  setInterval(async () => { if (user && running) { await remotePull(); if (running) remotePush(); } }, 60000);
+  window.addEventListener('online', remotePull); document.addEventListener('visibilitychange', () => { if (!document.hidden) remotePull(); });
+  initCollapse();
+  duelFillDays(); duelUsers(); duelsLoad();
+  setInterval(() => {
+    if (!user || document.hidden) return;
+    const fast = !$('roomTab').classList.contains('hidden') || DU.some(d => d.status === 'accepted' && duMine(d));
+    if (Date.now() - duelLast >= (fast ? 14500 : 59500)) duelsLoad();
+  }, 5000);
+  setInterval(() => { if (user && DU.length) { duSig = ''; duelsRender(); } }, 1000);
+  if (!roomInt) {
+    roomInt = setInterval(() => { if (inRoom || focusActive || !$('roomTab').classList.contains('hidden')) syncRoom(); }, 10000);
+    setInterval(() => { if (focusActive || !$('roomTab').classList.contains('hidden')) renderRoom(); }, 1000);
+  }
+}
+
+function togglePw(id, btn) {
+  const i = $(id), show = i.type === 'password'; i.type = show ? 'text' : 'password';
+  btn.innerHTML = show ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+}
+async function changePassword() {
+  const o = $('cpOld').value, n = $('cpNew').value;
+  if (!o || n.length < 6) return alert('Enter your current password and a new password of at least 6 characters.');
+  if (!navigator.onLine) return alert('You need to be online to change your password.');
+  const { error: e1 } = await sb.auth.signInWithPassword({ email: user.email, password: o });
+  if (e1) return alert('Your current password is not correct.');
+  const { error } = await sb.auth.updateUser({ password: n });
+  if (error) return alert('Error: ' + error.message);
+  $('cpOld').value = ''; $('cpNew').value = '';
+  alert('Password changed. Use the new password next time you sign in.');
+}
+
+// ---------- Subjects ----------
+function fillSubjects() {
+  [['swSubject',1],['manSubject',1],['exSubject',0],['clSubject',0],['ceSubject',0]].forEach(([id, add]) => {
+    const e = $(id), v = e.value;
+    e.innerHTML = subjects.map(s => `<option>${esc(s)}</option>`).join('') + (add ? '<option value="__new">+ Add New Subject</option>' : '');
+    if (v && [...e.options].some(o => o.value === v)) e.value = v;
+  });
+}
+function pickSubj(sel, custom) {
+  $(custom).classList.toggle('hidden', $(sel).value !== '__new');
+  if ($(sel).value === '__new') $(custom).focus();
+}
+function getSubject(sel, custom) {
+  if ($(sel).value !== '__new') return $(sel).value;
+  const n = $(custom).value.trim();
+  if (!n) return 'General Study';
+  if (!subjects.includes(n)) { subjects.push(n); localStorage.setItem('ev_subjects', JSON.stringify(subjects)); }
+  fillSubjects(); $(sel).value = n; $(custom).value = ''; $(custom).classList.add('hidden');
+  return n;
+}
+
+// ---------- Collapsible cards ----------
+function initCollapse() {
+  document.querySelectorAll('#app .card').forEach(c => {
+    if (c.id === 'lbCard') return;
+    const h = c.firstElementChild; if (c.closest('.modal') || c.dataset.col || !h || !/^H[34]$/.test(h.tagName)) return;
+    c.dataset.col = 1; const key = 'ev_col_' + h.textContent.trim().slice(0, 40);
+    h.style.cursor = 'pointer'; h.insertAdjacentHTML('beforeend', ' <i class="fa-solid fa-chevron-down ml-1 text-[10px]" style="transition:transform .2s"></i>');
+    const ap = () => { const o = localStorage.getItem(key) === '1'; [...c.children].forEach(x => { if (x !== h) x.style.display = o ? 'none' : ''; }); h.lastElementChild.style.transform = o ? 'rotate(-90deg)' : ''; };
+    h.onclick = () => { localStorage.setItem(key, localStorage.getItem(key) === '1' ? '0' : '1'); ap(); }; ap();
+  });
+}
+
+// ---------- Collapsible Leaderboard Drawer ----------
+const LB_OPEN_KEY = 'ev_lb_drawer_open';
+function applyLbDrawer() {
+  const drawer = $('lbDrawer'), icon = $('lbArrowIcon');
+  if (!drawer || !icon) return;
+  const open = localStorage.getItem(LB_OPEN_KEY) !== '0';
+  drawer.classList.toggle('hidden', !open);
+  icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+function toggleLbDrawer() {
+  const next = localStorage.getItem(LB_OPEN_KEY) === '0' ? '1' : '0';
+  localStorage.setItem(LB_OPEN_KEY, next);
+  applyLbDrawer();
+}
+
+// ---------- Subjects manager ----------
+const saveSubs = () => localStorage.setItem('ev_subjects', JSON.stringify(subjects));
+function renderSubjects() {
+  $('subjList').innerHTML = subjects.map((s, i) => `<div class="row"><span>${esc(s)}</span><div class="flex gap-4">
+    <button onclick="renSubject(${i})" class="text-blue-400" title="Rename"><i class="fa-solid fa-pen"></i></button>
+    ${s === 'Other' ? '' : `<button onclick="delSubject(${i})" class="text-red-400" title="Delete"><i class="fa-solid fa-trash"></i></button>`}</div></div>`).join('');
+}
+function addSubj() {
+  const n = $('newSubj').value.trim();
+  if (!n) return;
+  if (!subjects.includes(n)) { subjects.push(n); saveSubs(); }
+  $('newSubj').value = ''; fillSubjects(); renderSubjects();
+}
+async function remap(oldN, newN) {
+  if (!navigator.onLine) { alert('You need to be online to change subjects.'); return false; }
+  for (const t of ['study_sessions', 'classes', 'exams']) {
+    const { error } = await sb.from(t).update({ subject: newN }).eq('user_id', user.id).eq('subject', oldN);
+    if (error) { alert('Error: ' + error.message); return false; }
+  }
+  setQ(Q().map(i => i.row.subject === oldN ? { ...i, row: { ...i.row, subject: newN } } : i));
+  return true;
+}
+function moveSeg(from, to) { if (segs[from]) { segs[to] = (segs[to] || 0) + segs[from]; delete segs[from]; } if (tops[from]) { tops[to] = tops[from]; delete tops[from]; } if (tseg[from]) { tseg[to] = tseg[from]; delete tseg[from]; } if (curSub === from) curSub = to; }
+async function renSubject(i) {
+  const old = subjects[i], n = (prompt('Rename subject', old) || '').trim();
+  if (!n || n === old) return;
+  if (!await remap(old, n)) return;
+  subjects = [...new Set(subjects.map(x => x === old ? n : x))]; saveSubs(); moveSeg(old, n); refresh();
+}
+async function delSubject(i) {
+  const n = subjects[i];
+  if (!confirm(`Delete "${n}"?\n\nIts name will disappear from the charts and lists, but the study time already recorded stays on the charts (it is counted under "Other").`)) return;
+  if (!await remap(n, 'Other')) return;
+  subjects = subjects.filter(x => x !== n); if (!subjects.length) subjects = ['General Study'];
+  saveSubs(); moveSeg(n, 'Other'); refresh();
+}
+
+// ---------- Goal ----------
+function saveGoal() {
+  const v = parseFloat($('goalIn').value);
+  if (!(v > 0)) return alert('Enter a valid number of hours');
+  goalVal = v; goalType = $('goalType').value;
+  localStorage.setItem('ev_goal_val', v); localStorage.setItem('ev_goal_type', goalType);
+  renderGoal();
+}
+function renderGoal() {
+  const now = logicalNow(), t0 = dayStart();
+  const sum = (arr, f) => arr.reduce((a, x) => a + (+f(x) || 0), 0);
+  const live = Math.floor(base / 60);
+  let mins;
+  if (goalType === 'daily') {
+    mins = sum(D.sessions.filter(s => new Date(s.created_at) >= t0), s => s.duration_minutes) + classMins(now) + live;
+  } else {
+    const ws = weekStart(now); ws.setHours(DAY_CUT, 0, 0, 0); const wk = wkKey(now);
+    mins = sum(D.sessions.filter(s => new Date(s.created_at) >= ws), s => s.duration_minutes)
+         + sum(D.classes.filter(c => clActive(c, wk)), c => c.duration_minutes) + live;
+  }
+  const h = mins / 60, pct = Math.min(100, Math.round(h / goalVal * 100));
+  $('goalText').textContent = `${h.toFixed(1)} / ${goalVal} hrs (${pct}%)`;
+  $('goalBar').style.width = pct + '%';
+  renderStreak();
+}
+setInterval(() => { if (user) renderGoal(); }, 30000);
+
+// ---------- Streak ----------
+const restDay = () => { const v = localStorage.getItem('ev_restday'); return v === null || v === '' ? -1 : +v; };
+function fireState() {
+  const todayKey = dayKey(new Date()), rest = restDay(), cutK = toYMD(addDays(winStart(), 1)), m = {};
+  (D.days || []).forEach(r => { if (r.day < cutK) m[r.day] = +r.minutes || 0; });
+  D.sessions.forEach(x => { const k = dayKey(x.created_at); if (x.type !== 'manual' && k >= cutK) m[k] = (m[k] || 0) + (+x.duration_minutes || 0); });
+  const live = (running || base) ? base / 60 : 0;
+  if (live) m[todayKey] = (m[todayKey] || 0) + live;
+  const keys = Object.keys(m).filter(k => m[k] > 0).sort();
+  let cur = 0, best = 0;
+  if (keys.length) for (let d = ymd(keys[0]); toYMD(d) <= todayKey; d = addDays(d, 1)) {
+    const k = toYMD(d), st = m[k] || 0, mins = st > 0 ? st + classMins(d) : 0;
+    const need = cur >= 7 ? 300 : cur >= 2 ? 180 : 0;
+    if (mins > need) { cur++; best = Math.max(best, cur); }
+    else if (k !== todayKey && d.getDay() !== rest) cur = 0;
+  }
+  const days = { [todayKey]: (m[todayKey] || 0) > 0 || running || base > 0 };
+  const t0 = dayStart();
+  const mins = D.sessions.filter(s => new Date(s.created_at) >= t0).reduce((a, s) => a + (+s.duration_minutes || 0), 0)
+    + classMins(logicalNow()) + (running || base ? base / 60 : 0);
+  const studiedToday = !!days[todayKey], blaze = studiedToday && mins / 60 >= (goalType === 'daily' ? goalVal : goalVal / 7);
+  return { cur, best: Math.max(best, cur), studiedToday, blaze };
+}
+
+const SIMG = { angry: 'streak/angry.png', calm: 'streak/calm.png', spark: 'streak/spark.png', black: 'streak/black.png', red: 'streak/red.png' };
+const levelOf = n => n >= 60 ? 'red' : n >= 30 ? 'black' : n >= 15 ? 'spark' : n >= 1 ? 'calm' : 'angry';
+const streakImg = f => SIMG[f.studiedToday ? levelOf(Math.max(1, f.cur)) : 'angry'];
+const LVLS = [['angry', 'Not started today'], ['calm', '1-14 days'], ['spark', '15 days'], ['black', '30 days'], ['red', '60 days']];
+let lastLB = -1;
+
+function checkStreakPerks() {
+  const f = fireState();
+  const hasPerk = f.cur >= 30;
+  const box = $('manualRoomBox');
+  if (box) box.classList.toggle('hidden', !hasPerk);
+}
+
+function renderStreak() {
+  const f = fireState();
+  $('fireIcon').src = streakImg(f);
+  $('fireIcon').className = 'w-12 h-12 object-contain ' + (f.blaze ? 'fire-blaze' : '');
+  $('streakNum').textContent = f.cur;
+  $('streakBtn').className = 'w-24 shrink-0 rounded-2xl border bg-slate-900 flex flex-col items-center justify-center py-2 transition ' + (f.blaze ? 'border-orange-500/60 fire-glow' : f.studiedToday ? 'border-amber-500/40' : 'border-slate-800');
+  checkStreakPerks(); renderThemes();
+  if (f.cur !== lastLB) { lastLB = f.cur; pushStreak(f.cur); }
+}
+const THEMES = { blue: '#3b82f6', pink: '#c2678f', purple: '#8e6cc9', green: '#4f9d78' };
+function renderThemes() {
+  const row = $('themeRow'); if (!row) return;
+  const cur = localStorage.getItem('ev_theme') || 'blue', ok = fireState().best >= 15;
+  row.innerHTML = Object.entries(THEMES).map(([k, c]) => `<button onclick="setTheme('${k}')" title="${k}" class="thc ${cur === k ? 'on' : ''} ${k !== 'blue' && !ok ? 'lk' : ''}" style="background:${c}">${k !== 'blue' && !ok ? '<i class="fa-solid fa-lock text-[10px] text-white absolute inset-0 flex items-center justify-center"></i>' : ''}</button>`).join('');
+  $('themeNote').classList.toggle('hidden', ok);
+}
+function setTheme(k) {
+  if (k !== 'blue' && fireState().best < 15) return $('themeNote').classList.remove('hidden');
+  localStorage.setItem('ev_theme', k);
+  if (k === 'blue') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', k);
+  renderThemes(); renderCharts();
+}
+const ACC = () => getComputedStyle(document.documentElement).getPropertyValue('--a5').trim() || '#3b82f6';
+const ACCRGB = () => getComputedStyle(document.documentElement).getPropertyValue('--ar').trim() || '59,130,246';
+function openStreak() {
+  const f = fireState(), names = CAL === 'shamsi' ? DAYSF : DAYSE;
+  $('streakBig').src = streakImg(f);
+  $('streakLevels').innerHTML = LVLS.map(([k, t]) => `<div class="flex-1 flex flex-col items-center text-center"><img src="${SIMG[k]}" class="w-12 h-12 object-contain" alt=""><span class="text-[9px] leading-tight text-slate-400 mt-1">${t}</span></div>`).join('');
+  $('streakCount').textContent = f.cur; $('streakBest').textContent = f.best;
+  $('streakNote').textContent = f.blaze ? 'You reached your goal today. Your character is glowing!'
+    : f.studiedToday ? 'You studied today. Reach your daily goal to make your character glow.'
+    : restDay() === logicalNow().getDay() ? 'Today is your day off. Your streak is safe.' : 'Start studying to cheer your character up.';
+  $('restDay').innerHTML = '<option value="-1">No day off</option>' + names.map((n, i) => `<option value="${(i + 6) % 7}">${n}</option>`).join('');
+  $('restDay').value = String(restDay());
+  modal('streakModal', 1);
+}
+function setRestDay() { localStorage.setItem('ev_restday', $('restDay').value); renderStreak(); openStreak(); }
+
+// ---------- Focus mode ----------
+async function wakeOn() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function secApply() { const off = localStorage.getItem('ev_focus_nosec') === '1'; $('focusClock').classList.toggle('nosec', off); $('secBtn').innerHTML = off ? '<i class="fa-solid fa-eye mr-1"></i> Show seconds' : '<i class="fa-solid fa-eye-slash mr-1"></i> Hide seconds'; }
+function toggleSec() { localStorage.setItem('ev_focus_nosec', localStorage.getItem('ev_focus_nosec') === '1' ? '0' : '1'); secApply(); }
+function roomApply() { const off = localStorage.getItem('ev_focus_noroom') === '1'; $('focusRoomBox').classList.toggle('hidden', off); $('roomBtn').innerHTML = off ? '<i class="fa-solid fa-eye mr-1"></i> Show study room' : '<i class="fa-solid fa-eye-slash mr-1"></i> Hide study room'; }
+function toggleRoomBox() { localStorage.setItem('ev_focus_noroom', localStorage.getItem('ev_focus_noroom') === '1' ? '0' : '1'); roomApply(); }
+function focusOn() { secApply(); roomApply(); focusActive = true; $('focus').classList.remove('hidden'); draw(); renderRoom(); wakeOn(); if (user) syncRoom(); }
+function focusOff() { focusActive = false; $('focus').classList.add('hidden'); try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
+
+// ---------- Lists ----------
+function renderLists() {
+  const trash = (t, x) => x.id
+    ? `<button onclick="del('${t}','${x.id}')" class="text-red-400 hover:text-red-300 ml-3" title="Delete"><i class="fa-solid fa-trash"></i></button>`
+    : `<span class="text-[10px] text-amber-400 ml-3">pending sync</span><button onclick="delQ('${t}',${x._qi})" class="text-red-400 hover:text-red-300 ml-2" title="Delete"><i class="fa-solid fa-trash"></i></button>`;
+  $('sessionsList').innerHTML = D.sessions.slice(0, 40).map(s => `
+    <div class="row"><div><span class="font-medium">${esc(s.subject)}</span>
+    <span class="ml-2 px-1.5 py-0.5 rounded text-[10px] ${s.type === 'manual' ? 'bg-orange-500/10 text-orange-400' : 'bg-blue-500/10 text-blue-400'}">${s.type === 'manual' ? 'Manual entry ( not by stop watch )' : 'Stopwatch'}</span>
+    ${s.reason ? `<span class="block text-[10px] text-slate-400 mt-0.5">Reason: ${esc(s.reason)}</span>` : ''}</div>
+    <div class="flex items-center"><span class="font-mono text-slate-300">${s.duration_minutes} min · ${fmt(shiftD(s.created_at))}</span>${trash('study_sessions', s)}</div></div>`).join('') || '<p class="text-xs text-slate-500">No sessions yet.</p>';
+  const today = logicalNow(); today.setHours(0, 0, 0, 0);
+  const exams = D.exams.map(e => ({ e, left: Math.ceil((new Date(e.exam_date + 'T00:00:00') - today) / DAY) }))
+    .sort((a, b) => ((a.left < 0) - (b.left < 0)) || (a.e.exam_date > b.e.exam_date ? 1 : -1));
+  $('examsList').innerHTML = exams.map(({ e, left }) => {
+    const tone = left < 0 ? 'bg-slate-800 text-slate-400' : left <= 3 ? 'bg-red-500/15 text-red-300' : left <= 7 ? 'bg-amber-500/15 text-amber-300' : 'bg-blue-500/15 text-blue-300';
+    const c = color(e.subject);
+    return `<div class="flex items-stretch bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+      <div class="w-24 shrink-0 flex flex-col items-center justify-center py-3 ${tone}">
+        ${left < 0 ? '<i class="fa-solid fa-check text-3xl"></i>' : `<span class="text-4xl font-bold leading-none">${left}</span>`}
+        <span class="text-[10px] uppercase tracking-wider mt-1">${left < 0 ? 'passed' : left === 0 ? 'today' : left === 1 ? 'day left' : 'days left'}</span></div>
+      <div class="flex-1 min-w-0 p-3"><div class="font-semibold text-sm truncate">${esc(e.title)}</div>
+        <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px]"><span class="px-2 py-0.5 rounded-full" style="background:${c}22;color:${c}">${esc(e.subject)}</span>
+          <span class="text-slate-400"><i class="fa-solid fa-calendar-day mr-1"></i>${fmt(ymd(e.exam_date))}</span></div>
+        ${e.topics ? `<div class="text-[11px] text-slate-500 mt-1.5 line-clamp-2">${esc(e.topics)}</div>` : ''}</div>
+      <div class="flex items-center pr-3">${trash('exams', e)}</div></div>`;
+  }).join('') || '<p class="text-xs text-slate-500">No exams yet.</p>';
+  const wkNow = wkKey(logicalNow());
+  const isEnded = c => !!c.end_date && c.end_date < wkNow;
+  const cl = D.classes.slice().sort((a, b) => (isEnded(a) - isEnded(b)) || (((+a.day_of_week + 1) % 7) - ((+b.day_of_week + 1) % 7)));
+  $('classesList').innerHTML = cl.map(c => {
+    const ended = isEnded(c), info = (c.start_date ? ` · from ${fmt(ymd(c.start_date))}` : '') + (c.end_date ? ` · until ${fmt(addDays(ymd(c.end_date), 6))}` : '');
+    const acts = !c.id ? trash('classes', c)
+      : ended ? `<button onclick="delOldClass('${c.id}')" class="text-red-400 hover:text-red-300 ml-3" title="Delete from history"><i class="fa-solid fa-trash"></i></button>`
+      : `<button onclick="editClass('${c.id}')" class="text-blue-400 hover:text-blue-300 ml-3" title="Edit (from this week on)"><i class="fa-solid fa-pen"></i></button>
+         <button onclick="stopClass('${c.id}')" class="text-red-400 hover:text-red-300 ml-3" title="Remove from this week on"><i class="fa-solid fa-trash"></i></button>`;
+    return `<div class="row ${ended ? 'opacity-60' : ''}"><div><b>${esc(c.title)}</b> (${esc(c.subject)})<span class="block text-[10px] text-slate-400">${DAYS[(+c.day_of_week + 1) % 7]} · ${c.duration_minutes} min${ended ? ' · ended' : ''}${info}</span></div><div class="flex items-center shrink-0">${acts}</div></div>`;
+  }).join('') || '<p class="text-xs text-slate-500">No classes yet.</p>';
+}
+
+// ---------- Stopwatch ----------
+const isStale = id => !!id && parseInt(id) <= (+localStorage.getItem('ev_timer_finished_at') || 0);
+let actAt = 0;
+function persist() {
+  if (runId && (isStale(runId) || localStorage.getItem('ev_timer_done') === runId)) return abandon();
+  if (!running && base === 0) return localStorage.removeItem('ev_timer');
+  localStorage.setItem('ev_timer', JSON.stringify({ id: runId, running, base, lastTick, act: actAt, subject: curSub, segs, tops, tseg, pres: presenceSecs }));
+}
+let remAt = 0, remote = null, pullLast = 0;
+const DEV = localStorage.getItem('ev_dev') || (() => { const d = Math.random().toString(36).slice(2, 10); localStorage.setItem('ev_dev', d); return d; })();
+async function remoteWrite(st) {
+  remAt = Date.now(); st.dev = DEV;
+  try { const r = await sb.from('live_timer').upsert({ user_id: user.id, state: st, updated_at: new Date(remAt).toISOString() }, { onConflict: 'user_id' }); if (r.error) console.error('live_timer push', r.error); } catch (e) { console.error(e); }
+}
+async function remotePush(fin) {
+  if (!user || !navigator.onLine) return;
+  const st = fin ? { finished: true, id: fin } : LS('ev_timer', null); if (!st) return;
+  await remoteWrite({ ...st });
+}
+async function remotePull() {
+  if (!user || !navigator.onLine) return;
+  pullLast = Date.now();
+  try {
+    const { data, error } = await sb.from('live_timer').select('state,updated_at').eq('user_id', user.id).maybeSingle();
+    if (error) console.error('live_timer pull', error);
+    if (!data || !data.state) { remote = null; return remBar(); }
+    const st = data.state, t = new Date(data.updated_at).getTime();
+    if (st.dev === DEV) { remote = (st.finished || running || base > 0) ? null : st; return remBar(); }
+    if (st.finished) { remote = null; if (runId && runId === st.id) { localStorage.setItem('ev_timer_done', st.id); abandon(); ui(); leaveRoom(); refresh(); } return remBar(); }
+    if (st.id && st.id === localStorage.getItem('ev_timer_done')) { remote = null; return remBar(); }
+    if (runId && runId === st.id) {
+      if (t <= remAt + 1500) return; remAt = t;
+      clearInterval(tInt); running = false; base = 0; segs = {}; tops = {}; tseg = {}; alerted = {};
+      localStorage.setItem('ev_timer', JSON.stringify(st)); restoreTimer(); persist(); remote = null; return remBar();
+    }
+    remote = (running || base > 0) ? null : st; remBar();
+  } catch (e) { console.error(e); }
+}
+function remNow(st) {
+  const gap = st.running ? Math.max(0, Math.floor((Date.now() - st.lastTick) / 1000)) : 0, sg = { ...(st.segs || {}) };
+  if (gap) sg[st.subject] = (sg[st.subject] || 0) + gap;
+  return { base: (st.base || 0) + gap, segs: sg };
+}
+let remWas = false;
+function remBar() {
+  const el = $('remBar'); if (!el) return;
+  if (!remote || (remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) { el.classList.add('hidden'); if (remWas) { remWas = false; draw(); } return; }
+  remWas = true; if (!running && !base) draw();
+  const n = remNow(remote), h = Math.floor(n.base / 3600), m = Math.floor(n.base % 3600 / 60), sc = n.base % 60;
+  $('remTime').textContent = [h, m, sc].map(x => String(x).padStart(2, '0')).join(':');
+  $('remSub').textContent = (remote.subject || 'Study') + (remote.running ? ' · running' : ' · paused');
+  $('remPause').innerHTML = remote.running ? '<i class="fa-solid fa-pause mr-1"></i> Pause' : '<i class="fa-solid fa-play mr-1"></i> Resume';
+  el.classList.remove('hidden');
+}
+async function remToggle() {
+  if (!remote) return; const n = remNow(remote);
+  remote = { ...remote, base: n.base, segs: n.segs, lastTick: Date.now(), running: !remote.running };
+  await remoteWrite({ ...remote }); remBar();
+}
+async function remFinish() {
+  if (!remote || !confirm('Finish & save the stopwatch running on your other device?')) return;
+  const n = remNow(remote), st = remote, tp = st.tops || {}, ts = st.tseg || {}; remote = null; remBar();
+  for (const [subject, secs] of Object.entries(n.segs))
+    if (secs >= 15) { const t = topicPack(tp, ts, subject, secs); await save('study_sessions', { subject, duration_minutes: Math.max(1, Math.round(secs / 60)), type: 'stopwatch', created_at: new Date().toISOString(), ...(t ? { topic: t } : {}) }); }
+  await remotePush(st.id); await leaveRoom(); await refresh(); await duelsMarkFinished();
+}
+setInterval(remBar, 1000);
+function abandon() {
+  clearInterval(tInt); running = false; askOpen = false; presenceSecs = 0; modal('presence', 0); base = 0; segs = {}; tops = {}; tseg = {}; runId = null; pLeft = 0; pState = 'study'; alerted = {};
+  $('swTopic').value = '';
+  localStorage.removeItem('ev_timer'); showTopic(); ui();
+}
+function flipSet(str) {
+  const el = $('focusClock');
+  if (!el.firstChild) el.innerHTML = [...str].map((ch, k) => ch === ':' ? `<div class="fc${k > 4 ? ' sec' : ''}">:</div>` : `<div class="fl${k > 4 ? ' sec' : ''}"><div class="t"><span></span></div><div class="b"><span></span></div></div>`).join('');
+  const tiles = el.querySelectorAll('.fl'); let i = 0;
+  [...str].forEach(ch => { if (ch === ':') return; const t = tiles[i++]; if (!t) return;
+    const ts = t.querySelector('.t span'), bs = t.querySelector('.b span');
+    if (t._d === undefined) { ts.textContent = bs.textContent = ch; t._d = ch; return; }
+    if (t._d === ch) return;
+    const old = t._d; t._d = ch; ts.textContent = ch;
+    const ft = document.createElement('div'), fb = document.createElement('div');
+    ft.className = 't ft'; ft.innerHTML = `<span>${old}</span>`; fb.className = 'b fb'; fb.innerHTML = `<span>${ch}</span>`;
+    t.append(ft, fb); setTimeout(() => { bs.textContent = ch; ft.remove(); fb.remove(); }, 460);
+  });
+}
+function draw() {
+  const rem = remote && !running && !base && !(remote.running && Date.now() - remote.lastTick > 6 * 3600e3);
+  const s = pomo && !rem ? Math.max(0, pLeft) : rem ? remNow(remote).base : base;
+  const p = n => String(n).padStart(2, '0');
+  const clk = `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`;
+  $('swDisplay').textContent = clk; flipSet(clk);
+  $('swStatus').textContent = rem ? (remote.running ? 'Running on your other device' : 'Paused on your other device') : !running ? (base ? 'Paused' : 'Ready') : (pState === 'rest' ? 'Resting...' : 'Studying...');
+  $('swBreak').innerHTML = Object.entries(segs).map(([n, v]) => {
+    const tp = Object.entries(tseg[n] || {}).filter(([k]) => k).map(([k, s]) => `<div class="flex justify-between pl-3 text-[11px] text-slate-500"><span>↳ ${esc(k)}</span><span class="font-mono">${Math.floor(s / 60)} min</span></div>`).join('');
+    return `<div class="flex justify-between"><span>${esc(n)}</span><span class="font-mono">${Math.floor(v / 60)} min</span></div>${tp}`;
+  }).join('');
+}
+function ui() {
+  $('startBtn').textContent = running ? 'Pause' : (base ? 'Resume' : 'Start');
+  $('startBtn').className = 'btn flex-1 ' + (running ? 'bg-amber-600' : 'bg-blue-500 hover:bg-blue-600');
+  $('finishBtn').disabled = base === 0 && !running;
+  $('finishBtn').className = 'btn flex-1 ' + ($('finishBtn').disabled ? 'bg-slate-800 text-slate-500' : 'bg-emerald-600 hover:bg-emerald-500');
+  draw();
+}
+async function notify(t, b, tag) {
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg && reg.showNotification) await reg.showNotification(t, { body: b, tag: tag || ('ev-' + b), renotify: true, icon: 'icon.png', badge: 'icon.png' });
+    else new Notification(t, { body: b, icon: 'icon.png' });
+  } catch (e) { console.error('notify', e); }
+}
+function tick() {
+  if (!running) { clearInterval(tInt); return; }
+  const d = Math.floor((Date.now() - lastTick) / 1000);
+  if (d < 1) return;
+  lastTick += d * 1000; presenceSecs += d; actAt = Date.now();
+  if (pState === 'study') { base += d; segs[curSub] = (segs[curSub] || 0) + d; const tp = tops[curSub] || ''; (tseg[curSub] = tseg[curSub] || {})[tp] = (tseg[curSub][tp] || 0) + d; }
+  if (pomo) {
+    pLeft -= d;
+    if (pLeft <= 0) {
+      pState = pState === 'study' ? 'rest' : 'study';
+      pLeft = (+$(pState === 'study' ? 'pomoStudy' : 'pomoRest').value || (pState === 'study' ? 50 : 10)) * 60;
+      $('pomoTitle').textContent = pState === 'rest' ? 'Study completed!' : 'Rest finished!';
+      $('pomoDesc').textContent = pState === 'rest' ? 'Time for a break.' : 'Back to studying!';
+      modal('pomoAlert', 1); notify($('pomoTitle').textContent, $('pomoDesc').textContent);
+    }
+  }
+  [[600, '10'], [1800, '30']].forEach(([s, m]) => { if (base >= s && !alerted[m]) { alerted[m] = 1; notify('EDUVEX', `Your stopwatch has been running for ${m} minutes!`, 'ev-alert-' + m); } });
+  presenceStep();
+  if (base % 30 === 0) renderStreak();
+  draw(); persist();
+}
+function toggleTimer() {
+  if (!running) {
+    if (!localStorage.getItem('ev_push') && 'Notification' in window) modal('notif', 1);
+    presenceSecs = 0; askOpen = false;
+    const tv = $('swTopic').value.trim(); curSub = getSubject('swSubject', 'swCustom'); if (tv) tops[curSub] = tv; showTopic();
+    if (!runId) runId = Date.now() + '-' + Math.random().toString(36).slice(2, 6); clearInterval(tInt); running = true; lastTick = Date.now(); actAt = Date.now();
+    if (pomo && pLeft <= 0) { pState = 'study'; pLeft = (+$('pomoStudy').value || 50) * 60; }
+    tInt = setInterval(tick, 1000);
+    pushSchedule();
+    if (user && navigator.onLine && !inRoom) {
+      inRoom = true;
+      syncRoom();
+    } else if (inRoom) syncRoom();
+  } else {
+    running = false; clearInterval(tInt); askOpen = false; modal('presence', 0); actAt = Date.now();
+    pushClear();
+    if (inRoom) syncRoom();
+  }
+  ui(); persist(); renderStreak(); remotePush(); duelsPush();
+}
+function syncSub() { curSub = getSubject('swSubject', 'swCustom'); $('swTopic').value = tops[curSub] || ''; showTopic(); }
+function showTopic() {
+  const t = tops[curSub];
+  $('swTopicNow').innerHTML = t ? `<i class="fa-solid fa-tag text-blue-400 mr-1"></i>Current topic: <b class="text-slate-200">${esc(t)}</b>` : 'No topic set';
+}
+function applyTopic() {
+  const v = $('swTopic').value.trim(), old = tops[curSub] || '';
+  if (v === old) return flashTopic(v ? 'This topic is already set' : 'No topic to clear', false);
+  if (v) tops[curSub] = v; else delete tops[curSub];
+  persist(); remotePush();
+  try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+  flashTopic(v ? `✓ Topic changed to "${v}"` : '✓ Topic cleared', true);
+}
+function flashTopic(msg, ok) {
+  $('swTopicNow').innerHTML = `<span class="${ok ? 'text-emerald-400' : 'text-amber-400'} font-medium">${esc(msg)}</span>`;
+  clearTimeout(flashTopic.t); flashTopic.t = setTimeout(showTopic, 2000);
+}
+function topicPack(tp, ts, subject, secs) {
+  const o = Object.entries(ts[subject] || {}).filter(([k]) => k);
+  if (!o.length) return tp[subject] || '';
+  const tot = Object.values(ts[subject]).reduce((a, b) => a + b, 0) || 1;
+  return JSON.stringify(o.map(([t, s]) => ({ t, s: Math.round(s * secs / tot) })));
+}
+function topicList(v) {
+  if (!v) return [];
+  if (v[0] === '[') { try { const a = JSON.parse(v); if (Array.isArray(a)) return a; } catch (e) {} }
+  return [{ t: v, s: 0 }];
+}
+function togglePomo() { pomo = $('pomoOn').checked; $('pomoSet').classList.toggle('hidden', !pomo); pLeft = 0; pState = 'study'; draw(); }
+async function finishTimer(at) {
+  const when = at instanceof Date ? at : new Date();
+  modal('confirm', 0);
+  clearInterval(tInt); running = false; askOpen = false; presenceSecs = 0; modal('presence', 0); localStorage.removeItem('ev_timer');
+  if (runId) { localStorage.setItem('ev_timer_done', runId); remotePush(runId); }
+  localStorage.setItem('ev_timer_finished_at', Date.now());
+  runId = null;
+  pushClear();
+  const parts = Object.entries(segs), topics = tops, tsg = tseg;
+  base = 0; segs = {}; tops = {}; tseg = {}; $('swTopic').value = ''; showTopic(); pLeft = 0; pState = 'study'; alerted = {};
+  localStorage.removeItem('ev_timer');
+  ui(); $('swStatus').textContent = 'Finished & Saved!';
+  for (const [subject, secs] of parts)
+    if (secs >= 15) { const tp = topicPack(topics, tsg, subject, secs); await save('study_sessions', { subject, duration_minutes: Math.max(1, Math.round(secs / 60)), type: 'stopwatch', created_at: when.toISOString(), ...(tp ? { topic: tp } : {}) }); }
+  localStorage.removeItem('ev_timer');
+  await leaveRoom();
+  await refresh();
+  await duelsMarkFinished();
+}
+function restoreTimer() {
+  const s = LS('ev_timer', null);
+  if (!s) return;
+  if (s.id && (s.id === localStorage.getItem('ev_timer_done') || isStale(s.id))) { localStorage.removeItem('ev_timer'); return; }
+  runId = s.id || null;
+  base = s.base || 0; presenceSecs = s.pres || 0; actAt = s.act || s.lastTick || Date.now();
+  [[600, '10'], [1800, '30']].forEach(([sec, m]) => { if (base >= sec) alerted[m] = 1; });
+  curSub = s.subject || 'General Study';
+  segs = s.segs || { [curSub]: base };
+  tops = s.tops || {}; tseg = s.tseg || {}; $('swTopic').value = tops[curSub] || ''; showTopic();
+  if (s.running) { const gap = Math.max(0, Math.floor((Date.now() - s.lastTick) / 1000)); base += gap; presenceSecs += gap; segs[curSub] = (segs[curSub] || 0) + gap; const tp0 = tops[curSub] || ''; (tseg[curSub] = tseg[curSub] || {})[tp0] = (tseg[curSub][tp0] || 0) + gap; running = true; lastTick = Date.now(); clearInterval(tInt); tInt = setInterval(tick, 1000); }
+  setTimeout(() => { if ([...$('swSubject').options].some(o => o.value === s.subject)) $('swSubject').value = s.subject; }, 600);
+  ui(); presenceStep();
+}
+
+// ---------- Still-studying check ----------
+function presenceStep() {
+  if (!running) return;
+  if (presenceSecs >= PRES_EVERY + PRES_GRACE) return presenceExpire();
+  if (presenceSecs >= PRES_EVERY && !askOpen) {
+    askOpen = true; modal('presence', 1);
+    notify('EDUVEX', 'Are you still studying? Open the app and tap Yes to keep the stopwatch going.', 'ev-presence');
+  }
+  if (askOpen) { const left = Math.max(0, PRES_EVERY + PRES_GRACE - presenceSecs); $('presLeft').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; }
+}
+function presenceExpire() {
+  actAt = Date.now() - Math.max(0, presenceSecs - PRES_EVERY) * 1000;
+  const lost = Math.min(Math.max(0, Math.round(presenceSecs - PRES_EVERY)), base);
+  let cut = lost;
+  base -= cut;
+  for (const k of [curSub, ...Object.keys(segs)]) { if (cut <= 0) break; const t = Math.min(segs[k] || 0, cut); if (t) { segs[k] -= t; cut -= t; } }
+  clearInterval(tInt); running = false; askOpen = false; presenceSecs = 0; modal('presence', 0);
+  pushClear();
+  $('presStopMsg').textContent = `It was paused because you did not confirm that you were still studying. The last ${hm(lost / 60)} of waiting time was not counted. Press Resume to continue, or Finish & Save to keep your time.`;
+  modal('presStop', 1);
+  ui(); persist(); renderStreak(); remotePush(); if (inRoom) syncRoom();
+  autoSaveForgotten();
+}
+
+// ---------- Auto-save at 3:00 AM ----------
+const AUTO_HOUR = DAY_CUT;
+let autoBusy = false;
+async function autoSaveForgotten() {
+  if (autoBusy || !user || running || !(base > 0)) return false;
+  const cut = new Date(); cut.setHours(AUTO_HOUR, 0, 0, 0); if (cut > new Date()) cut.setDate(cut.getDate() - 1);
+  if (!actAt) { actAt = Date.now(); persist(); return false; }
+  if (actAt >= cut.getTime()) return false;
+  autoBusy = true;
+  try {
+    const dKey = toYMD(new Date(actAt - AUTO_HOUR * 3600e3));
+    const at = toYMD(new Date(actAt)) === dKey ? new Date(actAt) : new Date(dKey + 'T23:59:00');
+    modal('presStop', 0);
+    await finishTimer(at);
+    $('swStatus').textContent = 'Auto-saved to ' + fmtY(ymd(dKey));
+    notify('EDUVEX', 'Your paused stopwatch was saved automatically to ' + fmtY(ymd(dKey)) + '.', 'ev-autosave');
+    return true;
+  } catch (e) { console.error('autosave', e); return false; }
+  finally { autoBusy = false; }
+}
+setInterval(autoSaveForgotten, 60000);
+
+function presenceYes() { presenceSecs = 0; askOpen = false; modal('presence', 0); persist(); }
+function presenceTouch() { if (running && !askOpen) presenceSecs = 0; }
+
+// ---------- Auto-update ----------
+let lastUpdChk = 0;
+async function checkUpdate(auto) {
+  if (!navigator.onLine) return;
+  if (!auto && Date.now() - lastUpdChk < 30 * 60e3) return;
+  lastUpdChk = Date.now();
+  try {
+    const r = await fetch(location.pathname + location.search, { cache: 'reload' });
+    const m = (await r.text()).match(/<meta name="build" content="([^"]+)"/);
+    if (!m || m[1] === BUILD) return;
+    if ((!window.evBooted || document.hidden) && sessionStorage.getItem('ev_upd') !== m[1]) { sessionStorage.setItem('ev_upd', m[1]); location.reload(); return; }
+    $('updBar').classList.remove('hidden');
+  } catch (e) { console.error('update check', e); }
+}
+function applyUpdate() { location.reload(); }
+
+// ---------- Reminders ----------
+const b64u = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const pushSupported = () => 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+const pushOn = () => localStorage.getItem('ev_push') === 'on' && pushSupported() && Notification.permission === 'granted';
+async function pushEnsure() {
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, no) => setTimeout(() => no(new Error('service worker not ready')), 6000))]);
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) });
+  if (user && navigator.onLine) {
+    const { error } = await sb.from('push_subs').upsert({ endpoint: sub.endpoint, user_id: user.id, sub: sub.toJSON() }, { onConflict: 'endpoint' });
+    if (error) throw error;
+  }
+}
+async function pushEnable() {
+  if (!pushSupported()) return false;
+  try {
+    if (await Notification.requestPermission() !== 'granted') return false;
+    pushErr = '';
+    try { await pushEnsure(); } catch (e) { console.error('push subscribe', e); pushErr = (e && e.message) || String(e); }
+    return true;
+  } catch (e) { console.error('push', e); return false; }
+}
+async function pushClear() {
+  localStorage.setItem('ev_push_clear', '1');
+  try {
+    if (!user || !navigator.onLine) return;
+    const { error } = await sb.from('push_jobs').delete().eq('user_id', user.id).eq('sent', false);
+    if (!error) localStorage.removeItem('ev_push_clear');
+  } catch (e) { console.error('push clear', e); }
+}
+async function pushSchedule() {
+  try {
+    if (!pushOn() || !user || !navigator.onLine) return;
+    await pushEnsure();
+    const { error: e1 } = await sb.from('push_jobs').delete().eq('user_id', user.id).eq('sent', false);
+    if (e1) throw e1;
+    localStorage.removeItem('ev_push_clear');
+    const jobs = [[600, 10], [1800, 30]].filter(([sec]) => base < sec)
+      .map(([sec, m]) => ({ user_id: user.id, minutes: m, fire_at: new Date(Date.now() + (sec - base) * 1000).toISOString() }));
+    if (jobs.length) { const { error } = await sb.from('push_jobs').insert(jobs); if (error) throw error; }
+  } catch (e) { console.error('push schedule', e); }
+}
+function pushFlush() { if (localStorage.getItem('ev_push_clear') && !running) pushClear(); }
+function pushUI() {
+  const on = localStorage.getItem('ev_push') === 'on';
+  $('pushBtn').textContent = on ? 'Reminders: ON (tap to turn off)' : 'Reminders: OFF (tap to turn on)';
+  $('pushBtn').className = 'btn ' + (on ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-800 hover:bg-slate-700');
+  pushInfo();
+}
+async function pushInfo() {
+  const el = $('pushInfo');
+  if (!pushSupported()) { el.textContent = 'Background reminders are not available here. On iPhone/iPad, open EDUVEX from the Home Screen icon (iOS 16.4 or newer).'; return; }
+  let sub = null;
+  try {
+    const reg = await Promise.race([navigator.serviceWorker.getRegistration(), new Promise(r => setTimeout(() => r(null), 3000))]);
+    sub = reg ? await reg.pushManager.getSubscription() : null;
+  } catch (e) {}
+  el.textContent = `Permission: ${Notification.permission} · This device registered: ${sub ? 'yes' : 'no'}`;
+}
+async function pushTest() {
+  if (!pushSupported()) return alert('Background reminders are not available here. On iPhone/iPad, open EDUVEX from the Home Screen icon (iOS 16.4 or newer).');
+  if (!user || !navigator.onLine) return alert('You need to be online to send a test.');
+  if (Notification.permission !== 'granted' && !await pushEnable()) return alert('Please allow notifications for this site first.');
+  try {
+    await pushEnsure();
+    const { error } = await sb.from('push_jobs').insert({ user_id: user.id, minutes: 0, fire_at: new Date().toISOString() });
+    if (error) throw error;
+    alert('Test sent. It should arrive within a minute, even if you close the app.');
+  } catch (e) { alert('Test failed: ' + ((e && e.message) || e)); }
+  pushInfo();
+}
+async function notifAnswer(yes) {
+  modal('notif', 0);
+  if (!yes) { localStorage.setItem('ev_push', 'off'); pushUI(); return; }
+  const ok = await pushEnable();
+  localStorage.setItem('ev_push', ok ? 'on' : 'off'); pushUI();
+  if (!ok) alert('Reminders could not be turned on. Please allow notifications for this site in your device settings. On iPhone/iPad, open EDUVEX from the Home Screen icon.');
+  else { if (pushErr) alert('Reminders are on, but this device could not be registered for background messages (' + pushErr + '). They will only appear while the app is open.'); if (running) pushSchedule(); }
+}
+function pushToggle() {
+  if (localStorage.getItem('ev_push') === 'on') { localStorage.setItem('ev_push', 'off'); pushClear(); pushUI(); }
+  else notifAnswer(true);
+}
+
+// ---------- Manual / classes / exams / grades ----------
+async function saveManual() {
+  const mins = parseInt($('manMin').value);
+  if (!(mins > 0)) return alert('Enter the minutes');
+  const subject = getSubject('manSubject', 'manCustom');
+  const reason = $('manReason').value.trim();
+  await save('study_sessions', { subject, duration_minutes: mins, type: 'manual', reason, created_at: ymd(pickGet('manDate')).toISOString() });
+  $('manMin').value = ''; $('manReason').value = ''; refresh();
+}
+async function saveClass() {
+  const title = $('clTitle').value.trim();
+  if (!title) return alert('Enter the class title');
+  const from = toYMD(addDays(weekStart(logicalNow()), 7 * (+$('clFrom').value || 0)));
+  await save('classes', { title, subject: $('clSubject').value, day_of_week: +$('clDay').value, duration_minutes: parseInt($('clDur').value) || 60, start_date: from });
+  $('clTitle').value = ''; refresh();
+}
+const findClass = id => D.classes.find(x => x.id !== undefined && String(x.id) === String(id));
+function editClass(id) {
+  const c = findClass(id); if (!c) return;
+  fillSubjects();
+  $('ceId').value = c.id; $('ceTitle').value = c.title; $('ceSubject').value = c.subject; $('ceDay').value = String(+c.day_of_week); $('ceDur').value = c.duration_minutes;
+  modal('clEdit', 1);
+}
+async function clEditSave() {
+  const c = findClass($('ceId').value); if (!c) return modal('clEdit', 0);
+  const title = $('ceTitle').value.trim();
+  if (!title) return alert('Enter the class title');
+  if (!navigator.onLine) return alert('You need to be online to edit a class.');
+  const row = { title, subject: $('ceSubject').value, day_of_week: +$('ceDay').value, duration_minutes: parseInt($('ceDur').value) || 60 };
+  const wk = wkKey(logicalNow()), prev = toYMD(addDays(weekStart(logicalNow()), -7));
+  if (c.start_date && c.start_date >= wk) {
+    const { error } = await sb.from('classes').update(row).eq('id', c.id).eq('user_id', user.id);
+    if (error) return alert('Error: ' + error.message);
+  } else {
+    const r1 = await sb.from('classes').update({ end_date: prev }).eq('id', c.id).eq('user_id', user.id);
+    if (r1.error) return alert('Error: ' + r1.error.message);
+    const r2 = await sb.from('classes').insert({ ...row, user_id: user.id, start_date: wk });
+    if (r2.error) {
+      await sb.from('classes').update({ end_date: c.end_date || null }).eq('id', c.id).eq('user_id', user.id);
+      return alert('Error: ' + r2.error.message);
+    }
+  }
+  modal('clEdit', 0); refresh();
+}
+async function stopClass(id) {
+  const c = findClass(id); if (!c) return;
+  if (!navigator.onLine) return alert('You need to be online to change a class.');
+  const wk = wkKey(logicalNow());
+  if (c.start_date && c.start_date >= wk) return del('classes', c.id);
+  if (!confirm(`Remove "${c.title}" from this week on?\n\nPast weeks keep it (goal, streak, charts and PDF stay the same).`)) return;
+  const { error } = await sb.from('classes').update({ end_date: toYMD(addDays(weekStart(logicalNow()), -7)) }).eq('id', c.id).eq('user_id', user.id);
+  if (error) return alert('Error: ' + error.message);
+  refresh();
+}
+async function delOldClass(id) {
+  if (!confirm('This class already ended. Deleting it also removes it from the past weeks it counted in (goal, streak, charts). Delete anyway?')) return;
+  const { error } = await sb.from('classes').delete().eq('id', id).eq('user_id', user.id);
+  if (error) return alert('Error: ' + error.message);
+  refresh();
+}
+async function saveExam() {
+  const title = $('exTitle').value.trim();
+  if (!title) return alert('Enter the exam title');
+  await save('exams', { title, subject: $('exSubject').value, exam_date: pickGet('exDate'), topics: $('exTopics').value.trim() });
+  $('exTitle').value = ''; $('exTopics').value = ''; refresh();
+}
+async function saveGrade() {
+  const title = $('gTitle').value.trim(), score = parseFloat($('gScore').value), max = parseFloat($('gMax').value) || 100;
+  if (!title || isNaN(score)) return alert('Enter a valid title and score');
+  await save('exam_grades', { title, score, max_score: max, grade_date: pickGet('gDate') });
+  $('gTitle').value = ''; $('gScore').value = ''; refresh();
+}
+
+// ---------- To-Do ----------
+const todoKey = () => 'ev_todo_' + (user ? user.id : '');
+function todoLoad() {
+  const today = dayKey(new Date()); let t = LS(todoKey(), null);
+  if (!t || t.day !== today || !Array.isArray(t.items)) { t = { day: today, items: [] }; localStorage.removeItem(todoKey()); }
+  return t;
+}
+function todoSave(t) { if (t.items.length) localStorage.setItem(todoKey(), JSON.stringify(t)); else localStorage.removeItem(todoKey()); todoRender(); }
+function todoRender() {
+  const el = $('tdList'); if (!el) return;
+  const t = todoLoad();
+  el.innerHTML = t.items.map(x => `<div class="row !text-sm gap-2">
+    <input type="checkbox" ${x.done ? 'checked' : ''} onchange="todoToggle('${x.id}')" class="w-4 h-4 shrink-0">
+    <span class="flex-1 min-w-0 break-words ${x.done ? 'line-through text-slate-500' : ''}">${esc(x.t)}</span>
+    <button onclick="todoEdit('${x.id}')" class="text-blue-400 ml-2" title="Edit"><i class="fa-solid fa-pen"></i></button>
+    <button onclick="todoDel('${x.id}')" class="text-red-400 ml-3" title="Delete"><i class="fa-solid fa-trash"></i></button></div>`).join('') || '<p class="text-xs text-slate-500">No tasks yet.</p>';
+  const d = t.items.filter(x => x.done).length;
+  $('tdCount').textContent = t.items.length ? `${d} / ${t.items.length} done` : '';
+}
+function todoAdd() {
+  const v = $('tdIn').value.trim(); if (!v) return;
+  const t = todoLoad(); t.items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: v, done: false });
+  $('tdIn').value = ''; todoSave(t);
+}
+function todoToggle(id) { const t = todoLoad(), x = t.items.find(i => i.id === id); if (x) x.done = !x.done; todoSave(t); }
+function todoEdit(id) {
+  const t = todoLoad(), x = t.items.find(i => i.id === id); if (!x) return;
+  const v = (prompt('Edit task', x.t) || '').trim(); if (!v || v === x.t) return;
+  x.t = v; todoSave(t);
+}
+function todoDel(id) { const t = todoLoad(); t.items = t.items.filter(i => i.id !== id); todoSave(t); }
+setInterval(() => { if (user) { todoLoad(); if (!$('todoTab').classList.contains('hidden')) todoRender(); } }, 60000);
+
+// ---------- Practice tests ----------
+let tChart = null;
+const hm = m => { m = Math.round(m || 0); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+const fmtY = d => `${fmt(d)} ${pc(d).y}`;
+async function saveTests() {
+  const key = pickGet('tDate');
+  for (const i of document.querySelectorAll('#testsList input')) {
+    const sub = i.dataset.sub, old = D.tests.find(t => t.test_date === key && t.subject === sub);
+    const n = i.value === '' ? 0 : Math.max(0, parseInt(i.value) || 0), cur = old ? +old.count : 0;
+    if (n === cur) continue;
+    await save('study_tests', { test_date: key, subject: sub, count: n }, 'user_id,test_date,subject');
+  }
+  refresh();
+}
+function renderTests() {
+  if ($('testsTab').classList.contains('hidden')) return;
+  const day = ymd(pickGet('tDate')), key = toYMD(day), mins = {}, cnt = {};
+  D.sessions.forEach(s => { if (dayKey(s.created_at) === key) mins[s.subject] = (mins[s.subject] || 0) + (+s.duration_minutes || 0); });
+  D.tests.forEach(t => { if (t.test_date === key) cnt[t.subject] = +t.count; });
+  const order = [...new Set([...subjects, ...Object.keys(cnt)])].sort((a, b) => (mins[b] || 0) - (mins[a] || 0));
+  $('testsList').innerHTML = order.map(s => `<div class="row"><div><b>${esc(s)}</b><span class="block text-[10px] text-slate-400">${mins[s] ? hm(mins[s]) + ' studied' : 'no study time'}</span></div>
+    <input type="number" min="0" inputmode="numeric" data-sub="${esc(s)}" value="${cnt[s] ? cnt[s] : ''}" placeholder="0" class="inp !w-24 text-center"></div>`).join('');
+  $('testsTotal').textContent = `Total for this day: ${Object.values(cnt).reduce((a, b) => a + b, 0)} tests`;
+  renderTestsChart();
+}
+function renderTestsChart() {
+  if ($('testsTab').classList.contains('hidden')) return;
+  const day = ymd(pickGet('tDate')), view = $('testView').value, wk = view === 'weekly';
+  const days = wk ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(day), i)) : [day], keys = days.map(toYMD), per = {};
+  D.tests.forEach(t => { const i = keys.indexOf(t.test_date); if (i >= 0 && +t.count > 0) (per[t.subject] = per[t.subject] || Array(days.length).fill(0))[i] += +t.count; });
+  const total = Object.values(per).flat().reduce((a, b) => a + b, 0), names = Object.keys(per);
+  $('testsSum').textContent = `${wk ? fmt(days[0]) + ' - ' + fmt(days[6]) : fmt(day)}: ${total} tests`;
+  const labels = wk ? days.map(d => [(CAL === 'shamsi' ? DAYSF : DAYSE)[dayIdx(d)], fmt(d)]) : names;
+  const datasets = wk ? names.map(n => ({ label: n, data: per[n], backgroundColor: color(n), borderRadius: 4 }))
+                      : [{ label: 'Tests', data: names.map(n => per[n][0]), backgroundColor: names.map(color), borderRadius: 6 }];
+  if (tChart) tChart.destroy();
+  tChart = new Chart($('testsChart'), { type: 'bar', data: { labels, datasets },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { stacked: wk }, y: { stacked: wk, beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'tests' } } },
+      plugins: { legend: { display: wk, labels: { boxWidth: 12, font: { size: 10 } } } } } });
+}
+
+// ---------- Summary report (PDF) ----------
+const H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const _ls = {};
+const loadScript = src => _ls[src] || (_ls[src] = new Promise((ok, no) => {
+  const el = document.createElement('script'); el.src = src; el.onload = ok;
+  el.onerror = () => { delete _ls[src]; no(new Error('Could not load a library. Please check your internet.')); };
+  document.head.appendChild(el);
+}));
+let repC1 = null, repC2 = null, repName = 'EDUVEX-summary';
+function fillPeriods() {
+  const kind = $('repKind').value, now = logicalNow(); let h = '';
+  $('repTodoBox').classList.toggle('hidden', kind !== 'daily'); if (kind !== 'daily') $('repTodo').checked = false;
+  $('repPerBox').classList.toggle('hidden', kind === 'range'); $('repRangeBox').classList.toggle('hidden', kind !== 'range');
+  if (kind === 'range') return;
+  if (kind === 'daily') for (let i = 0; i < 31; i++) { const d = addDays(now, -i); h += `<option value="${toYMD(d)}">${i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmtY(d)}${i < 2 ? ' · ' + fmtY(d) : ''}</option>`; }
+  else if (kind === 'weekly') for (let i = 0; i < 16; i++) { const a = addDays(weekStart(now), -7 * i); h += `<option value="${toYMD(a)}">${i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(a)} · ${fmt(a)} to ${fmt(addDays(a, 6))}</option>`; }
+  else starts.forEach((m, i) => { const p = pc(m), nm = MN()[p.m - 1] + ' ' + p.y; h += `<option value="${i}">${i === 0 ? 'This month' : i === 1 ? 'Last month' : nm}${i < 2 ? ' · ' + nm : ''}</option>`; });
+  $('repPeriod').innerHTML = h;
+}
+function repCollect() {
+  const kind = $('repKind').value; let days;
+  if (kind === 'range') {
+    const a = ymd(pickGet('repFrom')), b = ymd(pickGet('repTo')); days = [];
+    if (a && b && a <= b) for (let d = a; d <= b && days.length < 120; d = addDays(d, 1)) days.push(d);
+    return { kind, days, label: days.length ? fmtY(days[0]) + ' to ' + fmtY(days[days.length - 1]) : '' };
+  }
+  const val = $('repPeriod').value, label = $('repPeriod').selectedOptions[0].textContent;
+  if (kind === 'daily') days = [ymd(val)];
+  else if (kind === 'weekly') { const a = ymd(val); days = Array.from({ length: 7 }, (_, i) => addDays(a, i)); }
+  else { const ms = starts[+val], me = mEnd(ms); days = []; for (let d = new Date(ms); d < me; d = addDays(d, 1)) days.push(d); }
+  return { kind, days, label };
+}
+async function openReport() {
+  if (!oldLoaded && repCollect().days[0] < winStart()) { oldLoaded = true; await refresh(); }
+  const { kind, days, label } = repCollect(), withCl = $('repClasses').checked;
+  if (!days.length) return alert('Choose a valid period: the From date must not be after the To date.');
+  const keys = days.map(toYMD), set = new Set(keys), endT = new Date(); endT.setHours(23, 59, 59, 999);
+  const ses = D.sessions.filter(s => set.has(dayKey(s.created_at))).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const tst = D.tests.filter(t => set.has(t.test_date) && +t.count > 0), sub = {};
+  const row = n => sub[n] || (sub[n] = { study: 0, cls: 0, tests: 0, topics: new Map() });
+  ses.forEach(s => { const r = row(s.subject); r.study += +s.duration_minutes || 0; topicList(s.topic).forEach(x => r.topics.set(x.t, (r.topics.get(x.t) || 0) + (x.s || 0))); });
+  const clsDay = days.map(d => withCl && d <= endT ? classesOn(d) : []);
+  clsDay.forEach(cs => cs.forEach(c => { row(c.subject).cls += +c.duration_minutes || 0; }));
+  tst.forEach(t => { row(t.subject).tests += +t.count; });
+  const names = Object.keys(sub).sort((a, b) => (sub[b].study + sub[b].cls) - (sub[a].study + sub[a].cls));
+  const sum = k => names.reduce((a, n) => a + sub[n][k], 0), study = sum('study'), cls = sum('cls'), tests = sum('tests');
+  const box = (t, v) => `<div class="box"><span style="font-size:11px;color:#64748b">${t}</span><b>${v}</b></div>`;
+  const range = days.length > 1 ? `${fmtY(days[0])} - ${fmtY(days[days.length - 1])}` : fmtY(days[0]);
+  let h = `<h1>EDUVEX Study Summary</h1><div style="color:#475569;font-size:13px;margin:4px 0 14px">${esc(label.split(' · ')[0])} · ${esc(range)} · ${esc(user.email.split('@')[0])}</div>`;
+  h += `<div style="display:flex;gap:10px">${box('Study time', hm(study))}${withCl ? box('Class time', hm(cls)) + box('Total with classes', hm(study + cls)) : ''}${box('Tests solved', tests)}</div>`;
+  h += '<h2>By subject</h2>';
+  if (!names.length) h += '<p style="font-size:12px;color:#64748b">No study time or tests recorded in this period.</p>';
+  else {
+    const anyTopic = names.some(n => sub[n].topics.size);
+    h += `<table><tr><th>Subject</th><th>Study</th>${withCl ? '<th>Classes</th><th>Total</th>' : ''}<th>Tests</th>${anyTopic ? '<th>Topics</th>' : ''}</tr>` +
+      names.map(n => { const r = sub[n]; return `<tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color(n)};margin-right:6px"></span>${esc(n)}</td><td>${hm(r.study)}</td>${withCl ? `<td>${hm(r.cls)}</td><td>${hm(r.study + r.cls)}</td>` : ''}<td>${r.tests || '-'}</td>${anyTopic ? `<td>${esc([...r.topics].map(([t, sc]) => kind === 'daily' && sc > 0 ? `${t} (${hm(sc / 60)})` : t).join(', ')) || '-'}</td>` : ''}</tr>`; }).join('') + '</table>';
+  }
+  const manualSessions = ses.filter(s => s.type === 'manual');
+  if (manualSessions.length) {
+    h += '<h2>Manual Entries & Reasons</h2>';
+    h += manualSessions.map(s => {
+      const dStr = fmt(shiftD(s.created_at));
+      const durStr = `${Math.floor(s.duration_minutes / 60)}h ${s.duration_minutes % 60}m`;
+      const reasonStr = s.reason ? ` -> ${esc(s.reason)}` : '';
+      return `<div style="font-size:12px;margin-bottom:4px;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">${dStr} | ${esc(s.subject)} | ${durStr} | Manual entry ( not by stop watch )${reasonStr}</div>`;
+    }).join('');
+  }
+  if (kind === 'daily' && ses.length) h += '<h2>Sessions</h2><table><tr><th>Subject</th><th>Time</th><th>Type</th><th>Topic / Reason</th></tr>' +
+    ses.map(s => `<tr><td>${esc(s.subject)}</td><td>${hm(s.duration_minutes)}</td><td>${s.type === 'manual' ? 'Manual entry ( not by stop watch )' : 'Stopwatch'}</td><td>${esc(topicList(s.topic).map(x => x.s > 0 ? `${x.t} (${hm(x.s / 60)})` : x.t).join(', ') || s.reason) || '-'}</td></tr>`).join('') + '</table>';
+  if (kind === 'daily' && clsDay[0].length) h += '<h2>Classes</h2><table><tr><th>Class</th><th>Subject</th><th>Time</th></tr>' +
+    clsDay[0].map(c => `<tr><td>${esc(c.title)}</td><td>${esc(c.subject)}</td><td>${hm(c.duration_minutes)}</td></tr>`).join('') + '</table>';
+  if (kind === 'daily' && $('repTodo').checked) {
+    h += '<h2>To-Do List</h2>';
+    const td = todoLoad();
+    if (keys[0] !== dayKey(new Date())) h += '<p style="font-size:12px;color:#64748b">The to-do list is only kept for today.</p>';
+    else if (!td.items.length) h += '<p style="font-size:12px;color:#64748b">No tasks.</p>';
+    else h += td.items.map(x => `<div style="font-size:12px;margin-bottom:5px"><span style="display:inline-block;width:11px;height:11px;border:1.5px solid #334155;border-radius:2px;margin-right:7px;vertical-align:-1px;background:${x.done ? '#10b981' : '#fff'}"></span>${x.done ? `<span style="color:#64748b;text-decoration:line-through">${esc(x.t)}</span>` : esc(x.t)}</div>`).join('');
+  }
+  if (kind !== 'daily') {
+    h += '<h2>Study hours per day</h2><canvas id="repC1" width="730" height="260"></canvas>';
+    if (tests) h += '<h2>Tests per day</h2><canvas id="repC2" width="730" height="260"></canvas>';
+  }
+  $('rep').innerHTML = h; modal('repModal', 1); repName = `EDUVEX-${kind}-${keys[0]}`;
+  if (repC1) repC1.destroy(); if (repC2) repC2.destroy(); repC1 = repC2 = null;
+  if (kind === 'daily') return;
+  const labels = days.map(d => kind === 'weekly' ? [(CAL === 'shamsi' ? DAYSF : DAYSE)[dayIdx(d)], fmt(d)] : kind === 'range' ? fmt(d) : pc(d).d);
+  const opt = (t, tk) => ({ responsive: false, animation: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: tk, title: { display: true, text: t } } }, plugins: { legend: { labels: { boxWidth: 10, font: { size: 10 } } } } });
+  const hrs = n => keys.map(k => +(ses.filter(s => s.subject === n && dayKey(s.created_at) === k).reduce((a, s) => a + s.duration_minutes, 0) / 60).toFixed(2));
+  const sets = names.filter(n => sub[n].study).map(n => ({ label: n, data: hrs(n), backgroundColor: color(n) }));
+  if (withCl) sets.push({ label: 'Classes', backgroundColor: '#94a3b8', data: clsDay.map(cs => +(cs.reduce((a, c) => a + (+c.duration_minutes || 0), 0) / 60).toFixed(2)) });
+  repC1 = new Chart($('repC1'), { type: 'bar', data: { labels, datasets: sets }, options: opt('hours', {}) });
+  if (tests) repC2 = new Chart($('repC2'), { type: 'bar', options: opt('tests', { precision: 0 }),
+    data: { labels, datasets: names.filter(n => sub[n].tests).map(n => ({ label: n, backgroundColor: color(n), data: keys.map(k => tst.filter(t => t.subject === n && t.test_date === k).reduce((a, t) => a + +t.count, 0)) })) } });
+}
+async function downloadPdf() {
+  const btn = $('repDl'), old = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Preparing...';
+  try {
+    await Promise.all([loadScript(H2C), loadScript(JSPDF)]);
+    const canvas = await html2canvas($('rep'), { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+    const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight(), pagePx = Math.floor(canvas.width * ph / pw);
+    for (let y = 0, p = 0; y < canvas.height; y += pagePx, p++) {
+      const part = document.createElement('canvas'); part.width = canvas.width; part.height = Math.min(pagePx, canvas.height - y);
+      part.getContext('2d').drawImage(canvas, 0, y, canvas.width, part.height, 0, 0, canvas.width, part.height);
+      if (p) pdf.addPage();
+      pdf.addImage(part.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pw, part.height * pw / canvas.width);
+    }
+    pdf.save(repName + '.pdf');
+  } catch (e) { console.error(e); alert('Could not create the PDF: ' + e.message); }
+  btn.disabled = false; btn.innerHTML = old;
+}
+
+// ---------- Leaderboard ----------
+async function pushStreak(n) {
+  if (!user || !navigator.onLine) return;
+  const { error } = await sb.from('leaderboard').upsert({ user_id: user.id, username: user.email.split('@')[0], streak: n, hidden: false, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (error) console.error('leaderboard', error);
+}
+let lbData = null;
+async function loadLB() {
+  if (!user || !navigator.onLine) return;
+  const { data, error } = await sb.from('leaderboard').select('*').gte('streak', LB_MIN).order('streak', { ascending: false }).limit(50);
+  if (error) return console.error('leaderboard', error);
+  lbData = data || []; renderLB();
+}
+function renderLB() {
+  applyLbDrawer();
+  const el = $('lbList'); if (!el || !lbData) return;
+  el.innerHTML = lbData.map((m, i) => `<div class="row ${m.user_id === user.id ? '!border-blue-500' : ''}">
+    <div class="flex items-center gap-2 flex-wrap min-w-0"><span class="w-5 text-slate-400 font-mono">${i + 1}</span>
+    <img src="${SIMG[levelOf(m.streak)]}" class="w-9 h-9 object-contain" alt=""><b class="truncate">${esc(m.username)}</b>${m.user_id === user.id ? ' (You)' : ''}${duBadge(m.user_id)}</div>
+    <span class="font-mono text-sm text-amber-300 shrink-0 ml-2">${m.streak} day${m.streak === 1 ? '' : 's'}</span></div>`).join('') || '<p class="text-xs text-slate-500 text-center py-4">No one yet.</p>';
+}
+
+const LB_MIN = 1;
+
+// ---------- Duels ----------
+let DU = [], duelUsersList = [], duelLast = 0, duelBusy = false, duelSeen = null, duSig = '';
+const duelPushed = {};
+const DUEL_RESULT_MS = 12 * 3600e3;
+const todayK = () => dayKey(new Date());
+const yesterdayK = () => toYMD(addDays(logicalNow(), -1));
+const uname = () => user.email.split('@')[0];
+const duMine = d => !!user && (d.challenger_id === user.id || d.opponent_id === user.id);
+
+function threeAmAfterDate(dateStr) {
+  const [y, m, day] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, day + 1, DAY_CUT, 0, 0, 0).getTime();
+}
+
+function duelBothFinished(d) {
+  return !!(d && d.challenger_finished_at && d.opponent_finished_at);
+}
+
+function isDuelFinished(d) {
+  if (!d || d.status !== 'accepted') return false;
+  const t = todayK();
+  if (d.duel_date < t) return true;
+  if (d.duel_date === t && duelBothFinished(d)) return true;
+  return false;
+}
+
+function isStudyingNow(uid) {
+  if (!uid) return false;
+  if (user && uid === user.id) return !!(running || base > 0);
+  const rm = roomRows.find(m => m.user_id === uid);
+  return !!(rm && rm.last_active && (Date.now() - new Date(rm.last_active).getTime() < 20000) && (rm.is_studying || (rm.live_seconds || 0) > 0));
+}
+
+function yesterdaySettlement(d) {
+  if (d.status !== 'accepted' || d.duel_date !== yesterdayK()) {
+    return { show: false, settled: false, settledAt: 0, remainingMs: 0 };
+  }
+  const threeAm = threeAmAfterDate(d.duel_date);
+  const bothStudying = isStudyingNow(d.challenger_id) && isStudyingNow(d.opponent_id);
+
+  const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
+  const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
+  const bothFinished = !!cFin && !!oFin;
+
+  let settledAt = threeAm;
+  let settled = false;
+
+  if (bothStudying) {
+    settled = Date.now() >= threeAm;
+    settledAt = threeAm;
+  } else if (bothFinished) {
+    settled = true;
+    settledAt = d.settled_at ? new Date(d.settled_at).getTime() : Math.max(cFin, oFin);
+  } else {
+    settled = Date.now() >= threeAm;
+    settledAt = d.settled_at ? new Date(d.settled_at).getTime() : threeAm;
+  }
+
+  const endWindow = settledAt + DUEL_RESULT_MS;
+  const remainingMs = Math.max(0, endWindow - Date.now());
+  return { show: settled && remainingMs > 0, settled, settledAt, remainingMs };
+}
+
+function duShown(d) {
+  if (d.status === 'pending' && d.duel_date >= todayK() && duMine(d)) return true;
+  if (d.status !== 'accepted') return false;
+  if (d.duel_date > todayK()) return true;
+  if (d.duel_date === todayK()) return true;
+  if (d.duel_date === yesterdayK()) return yesterdaySettlement(d).show;
+  return false;
+}
+
+function myStopSecs(key) {
+  let s = 0;
+  D.sessions.forEach(x => { if (x.type !== 'manual' && dayKey(x.created_at) === key) s += (+x.duration_minutes || 0) * 60; });
+  if (key === todayK()) {
+    if (running || base > 0) s += base;
+    else if (remote && !(remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) s += remNow(remote).base;
+  }
+  return s;
+}
+
+function duSecs(d, side) {
+  const isC = side === 'c';
+  const uid = isC ? d.challenger_id : d.opponent_id;
+  const finAt = isC ? d.challenger_finished_at : d.opponent_finished_at;
+  const saved = +d[isC ? 'challenger_secs' : 'opponent_secs'] || 0;
+  if (user && uid === user.id && d.duel_date === todayK() && !finAt) {
+    return Math.max(saved, myStopSecs(d.duel_date));
+  }
+  return saved;
+}
+
+function leadOf(d) {
+  if (d.duel_date > todayK()) return '';
+  const a = duSecs(d, 'c'), b = duSecs(d, 'o');
+  return a > b ? 'c' : b > a ? 'o' : '';
+}
+
+const duTime = (d, side) => d.duel_date > todayK() ? '--:--:--' : hms(duSecs(d, side));
+
+function duelIds() {
+  const t = todayK(), s = new Set();
+  DU.forEach(d => {
+    if (d.status === 'accepted' && d.duel_date === t && !isDuelFinished(d)) {
+      s.add(d.challenger_id);
+      s.add(d.opponent_id);
+    }
+  });
+  return s;
+}
+
+function duelInfo(uid) {
+  const t = todayK(), d = DU.find(x => x.status === 'accepted' && x.duel_date === t && !isDuelFinished(x) && (x.challenger_id === uid || x.opponent_id === uid));
+  if (!d) return null;
+  const l = leadOf(d);
+  return { lead: (l === 'c' && d.challenger_id === uid) || (l === 'o' && d.opponent_id === uid) };
+}
+
+function duBadge(uid) {
+  const di = duelInfo(uid);
+  return di ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-rose-500/15 text-rose-300 whitespace-nowrap">${di.lead ? '🎖️ ' : ''}⚔️ In duel</span>` : '';
+}
+
+function duelRow(d) {
+  const t = todayK();
+  const future = d.duel_date > t;
+  const over = isDuelFinished(d);
+  const lead = leadOf(d);
+  const mine = duMine(d);
+  const aSecs = duSecs(d, 'c'), bSecs = duSecs(d, 'o');
+  const winName = lead === 'c' ? d.challenger_name : lead === 'o' ? d.opponent_name : '';
+  const winSecs = lead === 'c' ? aSecs : lead === 'o' ? bSecs : 0;
+  const st = (over && d.duel_date < t) ? yesterdaySettlement(d) : null;
+  const hrsLeft = st ? ` · ${Math.max(1, Math.ceil(st.remainingMs / 3600e3))}h left` : '';
+
+  const side = (s, name, id) => {
+    const isWinner = over && lead === s;
+    const isDraw = over && !lead;
+    const badge = isWinner
+      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 shrink-0">WINNER</span>`
+      : isDraw
+      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 shrink-0">DRAW</span>`
+      : '';
+    return `<div class="flex items-center justify-between gap-2 py-0.5 ${isWinner ? 'bg-amber-500/10 px-2 rounded-lg border border-amber-500/25' : ''}">
+      <span class="flex items-center gap-1.5 min-w-0">
+        <span class="truncate">${lead === s ? '🎖️ ' : ''}<b>${esc(name)}</b>${id === user.id ? ' (You)' : ''}</span>
+        ${badge}
+      </span>
+      <span data-dt="${d.id}:${s}" class="font-mono shrink-0 ${isWinner || lead === s ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${duTime(d, s)}</span>
+    </div>`;
+  };
+
+  const tag = future ? `📅 Scheduled · ${fmtY(ymd(d.duel_date))}`
+    : over ? (lead
+      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)})${hrsLeft}`
+      : `🏁 Duel finished · Draw (${hms(aSecs)})${hrsLeft}`)
+    : '⚔️ In duel';
+
+  return `<div class="rounded-xl border-2 ${mine && !over ? 'border-rose-500/60' : over ? 'border-amber-500/50' : 'border-slate-800'} bg-slate-950 p-2.5 text-xs space-y-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-[11px] font-semibold ${over ? 'text-amber-300' : 'text-rose-300'}">${tag}</span>
+      ${mine && !over ? `<button onclick="duelDel('${d.id}')" class="text-slate-500 hover:text-red-400" title="Cancel duel"><i class="fa-solid fa-xmark"></i></button>` : ''}
+    </div>
+    ${side('c', d.challenger_name, d.challenger_id)}
+    ${side('o', d.opponent_name, d.opponent_id)}
+  </div>`;
+}
+
+const reqRow = d => `<div class="rounded-xl border-2 border-rose-500/50 bg-slate-950 p-2.5 text-xs flex items-center justify-between gap-2 flex-wrap"><span>⚔️ <b>${esc(d.challenger_name)}</b> challenged you · ${fmtY(ymd(d.duel_date))}</span>
+  <span class="flex gap-2"><button onclick="duelAnswer('${d.id}',true)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-medium">Accept</button><button onclick="duelAnswer('${d.id}',false)" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg">Decline</button></span></div>`;
+
+const outRow = d => `<div class="rounded-xl border-2 border-slate-800 bg-slate-950 p-2.5 text-xs flex items-center justify-between gap-2"><span>You → <b>${esc(d.opponent_name)}</b> · ${fmtY(ymd(d.duel_date))} · waiting…</span>
+  <button onclick="duelDel('${d.id}')" class="text-slate-400 hover:text-red-400" title="Cancel"><i class="fa-solid fa-xmark"></i></button></div>`;
+
+function duelsRender() {
+  if (!user) return;
+  const t = todayK(), list = DU.filter(duShown);
+  const sig = t + '|' + list.map(d => [
+    d.id,
+    d.status,
+    isDuelFinished(d) ? 1 : 0,
+    leadOf(d),
+    duSecs(d, 'c'),
+    duSecs(d, 'o'),
+    d.duel_date < t ? yesterdaySettlement(d).show : ''
+  ].join(':')).join(',');
+
+  if (sig !== duSig) {
+    duSig = sig;
+    const acc = list.filter(d => d.status === 'accepted');
+    const inc = list.filter(d => d.status === 'pending' && d.opponent_id === user.id);
+    const out = list.filter(d => d.status === 'pending' && d.challenger_id === user.id);
+    const activeToday = acc.filter(d => d.duel_date === t && !isDuelFinished(d));
+    const up = acc.filter(d => d.duel_date > t);
+    const done = acc.filter(d => isDuelFinished(d));
+
+    const sec = (title, arr, fn) => arr.length ? `<div class="text-[11px] font-semibold text-slate-400 pt-1">${title}</div>` + arr.map(fn).join('') : '';
+    const bar = inc.map(reqRow).join('') + activeToday.filter(duMine).map(duelRow).join('') + done.filter(duMine).map(duelRow).join('');
+    $('duelBar').innerHTML = bar;
+    $('duelBar').classList.toggle('hidden', !bar);
+    $('duelList').innerHTML =
+      sec('Requests for you', inc, reqRow) +
+      sec('Sent', out, outRow) +
+      sec('In duel today', activeToday, duelRow) +
+      sec('Scheduled', up, duelRow) +
+      sec('Duel finished', done, duelRow)
+      || '<p class="text-xs text-slate-500 text-center py-2">No duels yet. Challenge someone!</p>';
+    $('roomDuels').innerHTML = activeToday.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + activeToday.map(duelRow).join('') : '';
+    renderRoom();
+    renderLB();
+  }
+
+  document.querySelectorAll('[data-dt]').forEach(sp => {
+    const [id, s] = sp.dataset.dt.split(':'), d = DU.find(x => x.id === id);
+    if (d) {
+      const v = duTime(d, s);
+      if (sp.textContent !== v) sp.textContent = v;
+    }
+  });
+}
+
+async function duelsLoad() {
+  if (!user || !navigator.onLine || duelBusy) return;
+  duelBusy = true; duelLast = Date.now();
+  try {
+    const since = yesterdayK();
+    const { data, error } = await sb.from('duels').select('*').gte('duel_date', since).order('created_at', { ascending: false }).limit(200);
+    if (error) { console.error('duels', error); return; }
+    DU = data || [];
+    for (const d of DU) {
+      if (d.status === 'accepted' && duMine(d)) {
+        const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
+        const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
+        if (cFin && oFin && !d.settled_at) {
+          const setIso = new Date(Math.max(cFin, oFin)).toISOString();
+          const { error: eUp } = await sb.from('duels').update({ settled_at: setIso }).eq('id', d.id);
+          if (!eUp) d.settled_at = setIso;
+        }
+      }
+    }
+    const inc = DU.filter(d => d.status === 'pending' && d.opponent_id === user.id && d.duel_date >= todayK());
+    if (duelSeen === null) duelSeen = new Set(inc.map(d => d.id));
+    else inc.forEach(d => { if (!duelSeen.has(d.id)) { duelSeen.add(d.id); notify('EDUVEX', `${d.challenger_name} challenged you to a duel!`, 'ev-duel-' + d.id); } });
+    duSig = ''; duelsRender();
+    duelsPush();
+  } catch (e) { console.error('duels', e); }
+  finally { duelBusy = false; }
+}
+
+async function duelsPush() {
+  const t = todayK();
+  for (const d of DU) {
+    if (d.status !== 'accepted' || !duMine(d) || d.duel_date !== t) continue;
+    const isC = d.challenger_id === user.id;
+    if (isC ? d.challenger_finished_at : d.opponent_finished_at) continue;
+    const col = isC ? 'challenger_secs' : 'opponent_secs', v = Math.round(myStopSecs(d.duel_date));
+    if (v === (+d[col] || 0) || duelPushed[d.id + col] === v) continue;
+    duelPushed[d.id + col] = v;
+    const { error } = await sb.from('duels').update({ [col]: v }).eq('id', d.id);
+    if (error) { console.error('duel push', error); delete duelPushed[d.id + col]; } else d[col] = v;
+  }
+}
+
+async function duelsMarkFinished() {
+  if (!user || !navigator.onLine) return;
+  const nowIso = new Date().toISOString();
+  for (const d of DU) {
+    if (d.status !== 'accepted' || !duMine(d)) continue;
+    const isC = d.challenger_id === user.id;
+    const finCol = isC ? 'challenger_finished_at' : 'opponent_finished_at';
+    const secCol = isC ? 'challenger_secs' : 'opponent_secs';
+    const liveSecs = Math.round(myStopSecs(d.duel_date));
+    const secs = Math.max(+d[secCol] || 0, liveSecs);
+    const otherFin = isC ? d.opponent_finished_at : d.challenger_finished_at;
+    const patch = { [secCol]: secs, [finCol]: d[finCol] || nowIso };
+    if (otherFin && !d.settled_at) patch.settled_at = nowIso;
+    const { error } = await sb.from('duels').update(patch).eq('id', d.id);
+    if (!error) Object.assign(d, patch);
+  }
+  duSig = ''; duelsRender();
+  await duelsLoad();
+}
+
+async function duelUsers() {
+  if (!user || !navigator.onLine) return;
+  const { data, error } = await sb.from('leaderboard').select('user_id,username,streak').neq('user_id', user.id).order('username').limit(500);
+  if (error) return console.error('duel users', error);
+  duelUsersList = data || [];
+  const e = $('duelWho'), v = e.value;
+  e.innerHTML = '<option value="">Choose a person…</option>' + duelUsersList.map(u => `<option value="${esc(u.user_id)}">${esc(u.username)} · ${u.streak || 0}d</option>`).join('');
+  if (v && [...e.options].some(o => o.value === v)) e.value = v;
+}
+
+function duelFillDays() {
+  const e = $('duelDay'); if (!e) return; const v = e.value || '0';
+  e.innerHTML = [0, 1, 2, 3].map(i => `<option value="${i}">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : 'In ' + i + ' days'} · ${fmt(addDays(logicalNow(), i))}</option>`).join('');
+  e.value = v;
+}
+
+async function duelSend() {
+  if (!user) return;
+  if (!navigator.onLine) return alert('You need to be online to send a duel.');
+  const who = $('duelWho').value; if (!who) return alert('Choose a person first.');
+  const u = duelUsersList.find(x => x.user_id === who); if (!u) return alert('Choose a person first.');
+  const date = toYMD(addDays(logicalNow(), +$('duelDay').value || 0));
+  if (DU.some(d => (d.status === 'pending' || d.status === 'accepted') && d.duel_date === date && ((d.challenger_id === user.id && d.opponent_id === who) || (d.challenger_id === who && d.opponent_id === user.id))))
+    return alert('You already have a duel with this person on that day.');
+  const { error } = await sb.from('duels').insert({ challenger_id: user.id, challenger_name: uname(), opponent_id: who, opponent_name: u.username, duel_date: date, status: 'pending' });
+  if (error) return alert('Could not send the duel: ' + error.message);
+  alert('Duel request sent to ' + u.username + '.');
+  duelsLoad();
+}
+
+async function duelAnswer(id, ok) {
+  const d = DU.find(x => x.id === id); if (!d) return;
+  if (!navigator.onLine) return alert('You need to be online.');
+  if (ok && DU.some(x => x.status === 'accepted' && x.duel_date === d.duel_date && (x.challenger_id === d.challenger_id || x.opponent_id === d.challenger_id || x.challenger_id === d.opponent_id || x.opponent_id === d.opponent_id)))
+    return alert('One of you already has a duel on that day. A person can be in one duel per day.');
+  const { error } = await sb.from('duels').update({ status: ok ? 'accepted' : 'declined' }).eq('id', id);
+  if (error) return alert('Error: ' + error.message);
+  duelsLoad();
+}
+
+async function duelDel(id) {
+  const d = DU.find(x => x.id === id); if (!d) return;
+  if (!confirm(d.status === 'accepted' ? 'Cancel this duel for both of you?' : 'Cancel this request?')) return;
+  const { error } = await sb.from('duels').delete().eq('id', id);
+  if (error) return alert('Error: ' + error.message);
+  duelsLoad();
+}
+
+// ---------- Room ----------
+function loadRoomPrefs() {
+  $('anon').checked = localStorage.getItem('ev_room_anon') !== '0';
+  $('anonSub').checked = localStorage.getItem('ev_room_anon_sub') !== '0';
+  $('anonCls').checked = localStorage.getItem('ev_room_anon_cls') !== '0';
+}
+function saveRoomPrefs() {
+  localStorage.setItem('ev_room_anon', $('anon').checked ? '1' : '0');
+  localStorage.setItem('ev_room_anon_sub', $('anonSub').checked ? '1' : '0');
+  localStorage.setItem('ev_room_anon_cls', $('anonCls').checked ? '1' : '0');
+  if (inRoom) syncRoom();
+}
+function todayClassText() {
+  if ($('anonCls').checked) return '';
+  const m = classMins(logicalNow());
+  if (!m) return '';
+  return `+ ${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}’ class`;
+}
+function packSubject() {
+  const sub = $('anonSub').checked ? '' : ($('swSubject').value === '__new' ? 'General Study' : $('swSubject').value);
+  const cls = todayClassText();
+  return cls ? `${sub}\x1f${cls}` : sub;
+}
+function unpackSubject(raw) {
+  const [sub, cls] = String(raw || '').split('\x1f');
+  return { sub: sub || '', cls: cls || '' };
+}
+async function manualJoin() {
+  if (!running) return modal('timerOff', 1);
+  if (!navigator.onLine) return alert('You cannot join the study room while offline.');
+  inRoom = true;
+  syncRoom();
+}
+async function manualLeave() {
+  inRoom = false;
+  if (user && navigator.onLine) await sb.from('room_members').delete().eq('user_id', user.id);
+  syncRoom();
+}
+async function leaveRoom() {
+  inRoom = false;
+  if (user && navigator.onLine) await sb.from('room_members').delete().eq('user_id', user.id);
+  syncRoom();
+}
+async function syncRoom() {
+  if (!user || !navigator.onLine) return;
+  if (inRoom) {
+    const { error } = await sb.from('room_members').upsert({
+      user_id: user.id,
+      username: $('anon').checked ? 'Anonymous Member' : user.email.split('@')[0],
+      is_studying: running && pState === 'study',
+      live_seconds: base,
+      current_subject: packSubject(),
+      last_active: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (error) console.error('room', error);
+  }
+  const { data } = await sb.from('room_members').select('*');
+  roomRows = (data || []).filter(m => !m.last_active || Date.now() - new Date(m.last_active) < 20000); roomAt = Date.now();
+  renderRoom();
+}
+const hms = s => { s = Math.max(0, Math.floor(s)); const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`; };
+function renderRoom() {
+  if (!user) return;
+  const el = Math.max(0, Math.min(10, (Date.now() - roomAt) / 1000));
+  const secs = m => m.user_id === user.id && (running || base > 0) ? base : (m.live_seconds || 0) + (m.is_studying ? el : 0);
+  const ds = duelIds();
+  const rowH = m => {
+    const { sub, cls } = unpackSubject(m.current_subject);
+    return `<div class="row"><div><i class="fa-solid fa-user-graduate text-blue-400 mr-1"></i> <b>${esc(m.username)}</b>${m.user_id === user.id ? ' (You)' : ''}${duBadge(m.user_id)}${sub ? `<span class="block text-[10px] text-slate-400">${esc(sub)}</span>` : ''}</div>
+    <div class="text-right"><div class="font-mono text-sm">${hms(secs(m))}</div>
+    <div class="text-[10px]"><span class="px-1.5 py-0.5 rounded ${m.is_studying ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}">${m.is_studying ? 'Studying' : 'Resting'}</span>${cls ? ` <span class="text-emerald-400 font-mono">${esc(cls)}</span>` : ''}</div></div></div>`;
+  };
+  if (!$('roomTab').classList.contains('hidden')) {
+    const A = roomRows.filter(m => ds.has(m.user_id)), B = roomRows.filter(m => !ds.has(m.user_id));
+    $('roomList').innerHTML = (A.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + A.map(rowH).join('') + (B.length ? '<div class="border-t-2 border-dashed border-slate-800 my-2"></div>' : '') : '')
+      + B.map(rowH).join('') || '<p class="text-xs text-slate-500 text-center py-4">No active members.</p>';
+  }
+  if (focusActive) $('focusRoom').innerHTML = roomRows.map(m => { const di = duelInfo(m.user_id); return `<div class="flex justify-between items-center text-xs"><span class="truncate mr-2 text-slate-300">${di ? (di.lead ? '🎖️' : '') + '⚔️ ' : ''}${esc(m.username)}${m.user_id === user.id ? ' (You)' : ''}</span><span class="font-mono ${m.is_studying ? 'text-emerald-400' : 'text-slate-500'}">${hms(secs(m))}</span></div>`; }).join('') || '<p class="text-[11px] text-slate-500">No active members.</p>';
+}
+
+// ---------- Charts ----------
+function initArchive() {
+  let s = mStart(logicalNow());
+  starts = [];
+  for (let i = 0; i < 12; i++) { starts.push(s); s = mStart(addDays(s, -1)); }
+  $('monthSel').innerHTML = starts.map((m, i) => { const p = pc(m); return `<option value="${i}">${MN()[p.m - 1]} ${p.y}</option>`; }).join('');
+  const w0 = weekStart(logicalNow());
+  $('weekSel').innerHTML = Array.from({ length: 16 }, (_, i) =>
+    `<option value="${i}">${i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(addDays(w0, -7 * i))}</option>`).join('');
+}
+function dailySets(days, mode, showCl) {
+  const by = {};
+  D.sessions.forEach(s => { const k = dayKey(s.created_at); (by[k] = by[k] || []).push(s); });
+  const day = days.map(d => by[toYMD(d)] || []);
+  const hrs = ss => +(ss.reduce((a, s) => a + s.duration_minutes, 0) / 60).toFixed(2);
+  const YEL = '#facc15', LEG = 'Manual entry (yellow border)';
+  const sets = [];
+  if (mode === 'stacked') {
+    subjects.forEach(sub => [false, true].forEach(man => {
+      const data = day.map(ss => hrs(ss.filter(s => s.subject === sub && (s.type === 'manual') === man)));
+      if (data.some(x => x)) sets.push({ label: sub, data, backgroundColor: color(sub), borderRadius: 4, isManual: man,
+        ...(man ? { borderColor: YEL, borderWidth: 3, borderSkipped: false } : {}) });
+    }));
+    if (sets.some(x => x.isManual)) sets.push({ label: LEG, data: days.map(() => 0), backgroundColor: 'transparent', borderColor: YEL, borderWidth: 3 });
+  } else {
+    const man = day.map(ss => ss.some(s => s.type === 'manual'));
+    sets.push({ label: 'Total Hours', data: day.map(hrs), borderColor: ACC(), backgroundColor: `rgba(${ACCRGB()},.2)`, fill: true, tension: .2,
+      pointBorderColor: man.map(m => m ? YEL : ACC()), pointBorderWidth: man.map(m => m ? 3 : 1), pointRadius: man.map(m => m ? 6 : 3) });
+    if (man.some(Boolean)) sets.push({ label: LEG, data: [], borderColor: YEL, backgroundColor: 'transparent', borderWidth: 3 });
+  }
+  if (showCl) sets.push({ type: 'line', label: 'Classes', data: days.map(d => +(classMins(d) / 60).toFixed(2)),
+    borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.3)', tension: .2 });
+  return sets;
+}
+function renderCharts() {
+  if ($('chartsTab').classList.contains('hidden') || !starts.length) return;
+  if (!oldLoaded && (addDays(weekStart(logicalNow()), -7 * +$('weekSel').value) < winStart() || starts[+$('monthSel').value] < winStart())) { oldLoaded = true; refresh(); return; }
+  const mode = $('chartMode').value, showCl = $('layerClasses').checked, showGr = $('layerGrades').checked, st = mode === 'stacked';
+  const yAxis = (extra = {}) => ({ stacked: st, beginAtZero: true, min: 0, max: 20, ticks: { stepSize: 1 }, title: { display: true, text: 'hours' }, ...extra });
+  const legend = { labels: { boxWidth: 12, font: { size: 10 }, filter: (it, d) => {
+    const ds = d.datasets[it.datasetIndex];
+    return !ds.isManual || !d.datasets.some(o => !o.isManual && o.label === ds.label && o.type !== 'line');
+  } } };
+
+  const ws = addDays(weekStart(logicalNow()), -7 * +$('weekSel').value);
+  const wdays = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  if (wChart) wChart.destroy();
+  wChart = new Chart($('weeklyChart'), {
+    type: st ? 'bar' : 'line',
+    data: { labels: wdays.map(d => [(CAL === 'shamsi' ? DAYSF : DAYSE)[dayIdx(d)], fmt(d)]), datasets: dailySets(wdays, mode, showCl) },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: st }, y: yAxis() }, plugins: { legend } }
+  });
+
+  const ms = starts[+$('monthSel').value], me = mEnd(ms);
+  $('monthRange').textContent = `${fmt(ms)} → ${fmt(addDays(me, -1))}`;
+  const mdays = []; for (let d = new Date(ms); d < me; d = addDays(d, 1)) mdays.push(d);
+  const msets = dailySets(mdays, mode, showCl);
+  if (showGr) {
+    const by = {};
+    D.grades.forEach(g => (by[g.grade_date] = by[g.grade_date] || []).push(g.score / (g.max_score || 100) * 100));
+    msets.push({ type: 'line', label: 'Exam Score (%)', yAxisID: 'y1', showLine: false, pointRadius: 6, pointStyle: 'rectRot', borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+      data: mdays.map(d => { const a = by[toYMD(d)]; return a ? +(a.reduce((x, y) => x + y) / a.length).toFixed(1) : null; }) });
+  }
+  if (mChart) mChart.destroy();
+  mChart = new Chart($('monthlyChart'), {
+    type: st ? 'bar' : 'line',
+    data: { labels: mdays.map(d => pc(d).d), datasets: msets },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { stacked: st, title: { display: true, text: 'day of month' } }, y: yAxis(), y1: { display: showGr, position: 'right', min: 0, max: 100, ticks: { stepSize: 10 }, grid: { drawOnChartArea: false } } },
+      plugins: { legend } }
+  });
+}
+
+// ---------- Init ----------
+window.evBooted = false;
+function bootDone() {
+  window.evBooted = true;
+  if ($('app').classList.contains('hidden') && $('auth').classList.contains('hidden')) $('auth').classList.remove('hidden');
+  const b = $('boot'); if (b) b.remove();
+}
+setTimeout(bootDone, 12000);
+document.addEventListener('DOMContentLoaded', async () => {
+ try {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  $('clDay').innerHTML = DAYS.map((n, i) => `<option value="${(i + 6) % 7}">${n}</option>`).join('');
+  $('ceDay').innerHTML = $('clDay').innerHTML;
+  $('goalType').value = goalType; $('goalIn').value = goalVal;
+  $('goalType').onchange = () => { goalType = $('goalType').value; localStorage.setItem('ev_goal_type', goalType); renderGoal(); };
+  ['manDate', 'gDate', 'tDate'].forEach(id => mkPicker(id, logicalNow())); mkPicker('exDate');
+  mkPicker('repFrom', addDays(logicalNow(), -6), 3); mkPicker('repTo', logicalNow(), 3);
+  $('tDate').addEventListener('change', renderTests);
+  initArchive(); fillPeriods(); fillSubjects(); restoreTimer(); status(); calUI(); pushUI(); showTopic(); duelFillDays(); applyLbDrawer();
+  window.addEventListener('online', () => { status(); refresh(); });
+  window.addEventListener('offline', status);
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, presenceTouch, { passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (running) tick(); autoSaveForgotten(); checkUpdate(false); if (focusActive) wakeOn(); } });
+  window.addEventListener('storage', e => { if ((e.key === 'ev_timer_done' || e.key === 'ev_timer_finished_at') && runId && (e.newValue === runId || isStale(runId))) abandon(); });
+  checkUpdate(true);
+  let session = null, slow = false;
+  try {
+    const r = await Promise.race([sb.auth.getSession(), new Promise(res => setTimeout(() => res(null), 5000))]);
+    if (r === null) slow = true; else session = r.data && r.data.session;
+  } catch (e) { console.error('getSession', e); slow = true; }
+  if (!session && (slow || !navigator.onLine)) {
+    const saved = LS('sb-kuescglkkpvsqqxnubww-auth-token', null);
+    if (saved && (saved.user || (saved.currentSession && saved.currentSession.user))) session = { user: saved.user || saved.currentSession.user };
+  }
+  if (session) { user = session.user; onLogin(); }
+  else $('auth').classList.remove('hidden');
+ } catch (e) {
+  console.error('init', e);
+ } finally { bootDone(); }
+});
+</script>
+<script src="eduvex-polish.js?v=4"></script>
+</body>
+</html>
