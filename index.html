@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261126-8">
+<meta name="build" content="20261126-7">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -398,7 +398,7 @@ html[data-theme] .via-indigo-500{--tw-gradient-stops:var(--tw-gradient-from),var
 </main>
 
 <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-400">
-  Made by <a href="https://raswta.carrd.co" target="_blank" class="text-blue-400 font-semibold">raswta</a> · v8
+  Made by <a href="https://raswta.carrd.co" target="_blank" class="text-blue-400 font-semibold">raswta</a> · v7
 </footer>
 
 <div id="focus" class="hidden fixed inset-0 z-[45] bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6 gap-6 sm:gap-8">
@@ -1721,6 +1721,29 @@ function threeAmAfterDate(dateStr) {
   return new Date(y, m - 1, day + 1, DAY_CUT, 0, 0, 0).getTime();
 }
 
+function getFinMarker(d, side) {
+  if (!d) return '';
+  const col = side === 'c' ? 'challenger_finished_at' : 'opponent_finished_at';
+  if (d[col]) return d[col];
+  return (d.finished_by && d.finished_by[side]) || '';
+}
+
+function duelBothFinished(d) {
+  if (!d) return false;
+  const cDone = !!(d.challenger_finished_at || (d.finished_by && d.finished_by.c));
+  const oDone = !!(d.opponent_finished_at || (d.finished_by && d.finished_by.o));
+  return cDone && oDone;
+}
+
+function isDuelFinished(d) {
+  if (!d || d.status !== 'accepted') return false;
+  if (d.status === 'finished') return true;
+  const t = todayK();
+  if (d.duel_date < t) return true;
+  if (d.duel_date === t && duelBothFinished(d)) return true;
+  return false;
+}
+
 function isStudyingNow(uid) {
   if (!uid) return false;
   if (user && uid === user.id) return !!(running || base > 0);
@@ -1735,9 +1758,11 @@ function yesterdaySettlement(d) {
   const threeAm = threeAmAfterDate(d.duel_date);
   const bothStudying = isStudyingNow(d.challenger_id) && isStudyingNow(d.opponent_id);
 
-  const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
-  const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
-  const bothFinished = !!cFin && !!oFin;
+  const cFinStr = getFinMarker(d, 'c');
+  const oFinStr = getFinMarker(d, 'o');
+  const cFin = cFinStr && !isNaN(new Date(cFinStr).getTime()) ? new Date(cFinStr).getTime() : 0;
+  const oFin = oFinStr && !isNaN(new Date(oFinStr).getTime()) ? new Date(oFinStr).getTime() : 0;
+  const bothFinished = !!(cFin && oFin);
 
   let settledAt = threeAm;
   let settled = false;
@@ -1761,63 +1786,75 @@ function yesterdaySettlement(d) {
 function duShown(d) {
   if (d.status === 'pending' && d.duel_date >= todayK() && duMine(d)) return true;
   if (d.status !== 'accepted') return false;
-  if (d.duel_date >= todayK()) return true;
-  if (d.duel_date < todayK()) {
-    if (d.duel_date === yesterdayK()) {
-      const st = yesterdaySettlement(d);
-      if (st.show) return true;
-    }
-    const a = +d.challenger_secs || 0, b = +d.opponent_secs || 0;
-    const finishedTs = Math.max(
-      d.settled_at ? new Date(d.settled_at).getTime() : 0,
-      d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0,
-      d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0,
-      threeAmAfterDate(d.duel_date)
-    );
-    return (Date.now() - finishedTs) < DUEL_RESULT_MS || (a > 0 || b > 0);
-  }
+  if (d.duel_date > todayK()) return true;
+  if (d.duel_date === todayK()) return true;
+  if (d.duel_date === yesterdayK()) return yesterdaySettlement(d).show;
   return false;
 }
 
 function myStopSecs(key) {
   let s = 0;
   D.sessions.forEach(x => { if (x.type !== 'manual' && dayKey(x.created_at) === key) s += (+x.duration_minutes || 0) * 60; });
-  if (key === todayK()) { if (running || base > 0) s += base; else if (remote && !(remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) s += remNow(remote).base; }
+  if (key === todayK()) {
+    if (running || base > 0) s += base;
+    else if (remote && !(remote.running && Date.now() - remote.lastTick > 6 * 3600e3)) s += remNow(remote).base;
+  }
   return s;
 }
+
 function duSecs(d, side) {
-  const mine = (side === 'c' ? d.challenger_id : d.opponent_id) === user.id;
-  if (mine && d.duel_date === todayK()) return myStopSecs(d.duel_date);
-  return +d[side === 'c' ? 'challenger_secs' : 'opponent_secs'] || 0;
+  const isC = side === 'c';
+  const uid = isC ? d.challenger_id : d.opponent_id;
+  const finMarker = getFinMarker(d, side);
+  const saved = +d[isC ? 'challenger_secs' : 'opponent_secs'] || 0;
+  if (user && uid === user.id && d.duel_date === todayK() && !finMarker) {
+    return Math.max(saved, myStopSecs(d.duel_date));
+  }
+  return saved;
 }
+
 function leadOf(d) {
   if (d.duel_date > todayK()) return '';
   const a = duSecs(d, 'c'), b = duSecs(d, 'o');
   return a > b ? 'c' : b > a ? 'o' : '';
 }
+
 const duTime = (d, side) => d.duel_date > todayK() ? '--:--:--' : hms(duSecs(d, side));
+
 function duelIds() {
   const t = todayK(), s = new Set();
-  DU.forEach(d => { if (d.status === 'accepted' && d.duel_date === t) { s.add(d.challenger_id); s.add(d.opponent_id); } });
+  DU.forEach(d => {
+    if (d.status === 'accepted' && d.duel_date === t && !isDuelFinished(d)) {
+      s.add(d.challenger_id);
+      s.add(d.opponent_id);
+    }
+  });
   return s;
 }
+
 function duelInfo(uid) {
-  const t = todayK(), d = DU.find(x => x.status === 'accepted' && x.duel_date === t && (x.challenger_id === uid || x.opponent_id === uid));
+  const t = todayK(), d = DU.find(x => x.status === 'accepted' && x.duel_date === t && !isDuelFinished(x) && (x.challenger_id === uid || x.opponent_id === uid));
   if (!d) return null;
   const l = leadOf(d);
   return { lead: (l === 'c' && d.challenger_id === uid) || (l === 'o' && d.opponent_id === uid) };
 }
+
 function duBadge(uid) {
   const di = duelInfo(uid);
   return di ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-rose-500/15 text-rose-300 whitespace-nowrap">${di.lead ? '🎖️ ' : ''}⚔️ In duel</span>` : '';
 }
+
 function duelRow(d) {
-  const t = todayK(), future = d.duel_date > t, over = d.duel_date < t, lead = leadOf(d), mine = duMine(d);
+  const t = todayK();
+  const future = d.duel_date > t;
+  const over = isDuelFinished(d);
+  const lead = leadOf(d);
+  const mine = duMine(d);
   const aSecs = duSecs(d, 'c'), bSecs = duSecs(d, 'o');
   const winName = lead === 'c' ? d.challenger_name : lead === 'o' ? d.opponent_name : '';
   const winSecs = lead === 'c' ? aSecs : lead === 'o' ? bSecs : 0;
-  const st = over ? yesterdaySettlement(d) : null;
-  const hrsLeft = st && st.remainingMs > 0 ? Math.max(1, Math.ceil(st.remainingMs / 3600e3)) : 0;
+  const st = (over && d.duel_date < t) ? yesterdaySettlement(d) : null;
+  const hrsLeft = st ? ` · ${Math.max(1, Math.ceil(st.remainingMs / 3600e3))}h left` : '';
 
   const side = (s, name, id) => {
     const isWinner = over && lead === s;
@@ -1838,8 +1875,8 @@ function duelRow(d) {
 
   const tag = future ? `📅 Scheduled · ${fmtY(ymd(d.duel_date))}`
     : over ? (lead
-      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)})${hrsLeft ? ` · ${hrsLeft}h left` : ''}`
-      : `🏁 Duel finished · Draw (${hms(aSecs)})${hrsLeft ? ` · ${hrsLeft}h left` : ''}`)
+      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)})${hrsLeft}`
+      : `🏁 Duel finished · Draw (${hms(aSecs)})${hrsLeft}`)
     : '⚔️ In duel';
 
   return `<div class="rounded-xl border-2 ${mine && !over ? 'border-rose-500/60' : over ? 'border-amber-500/50' : 'border-slate-800'} bg-slate-950 p-2.5 text-xs space-y-1.5">
@@ -1851,43 +1888,74 @@ function duelRow(d) {
     ${side('o', d.opponent_name, d.opponent_id)}
   </div>`;
 }
+
 const reqRow = d => `<div class="rounded-xl border-2 border-rose-500/50 bg-slate-950 p-2.5 text-xs flex items-center justify-between gap-2 flex-wrap"><span>⚔️ <b>${esc(d.challenger_name)}</b> challenged you · ${fmtY(ymd(d.duel_date))}</span>
   <span class="flex gap-2"><button onclick="duelAnswer('${d.id}',true)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-medium">Accept</button><button onclick="duelAnswer('${d.id}',false)" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg">Decline</button></span></div>`;
+
 const outRow = d => `<div class="rounded-xl border-2 border-slate-800 bg-slate-950 p-2.5 text-xs flex items-center justify-between gap-2"><span>You → <b>${esc(d.opponent_name)}</b> · ${fmtY(ymd(d.duel_date))} · waiting…</span>
   <button onclick="duelDel('${d.id}')" class="text-slate-400 hover:text-red-400" title="Cancel"><i class="fa-solid fa-xmark"></i></button></div>`;
+
 function duelsRender() {
   if (!user) return;
   const t = todayK(), list = DU.filter(duShown);
-  const sig = t + '|' + list.map(d => d.id + d.status + leadOf(d) + (d.duel_date < t ? yesterdaySettlement(d).show : '')).join(',');
+  const sig = t + '|' + list.map(d => [
+    d.id,
+    d.status,
+    isDuelFinished(d) ? 1 : 0,
+    leadOf(d),
+    duSecs(d, 'c'),
+    duSecs(d, 'o'),
+    d.duel_date < t ? yesterdaySettlement(d).show : ''
+  ].join(':')).join(',');
+
   if (sig !== duSig) {
     duSig = sig;
-    const acc = list.filter(d => d.status === 'accepted'), inc = list.filter(d => d.status === 'pending' && d.opponent_id === user.id), out = list.filter(d => d.status === 'pending' && d.challenger_id === user.id);
-    const now = acc.filter(d => d.duel_date === t), up = acc.filter(d => d.duel_date > t), done = acc.filter(d => d.duel_date < t);
+    const acc = list.filter(d => d.status === 'accepted');
+    const inc = list.filter(d => d.status === 'pending' && d.opponent_id === user.id);
+    const out = list.filter(d => d.status === 'pending' && d.challenger_id === user.id);
+    const activeToday = acc.filter(d => d.duel_date === t && !isDuelFinished(d));
+    const up = acc.filter(d => d.duel_date > t);
+    const done = acc.filter(d => isDuelFinished(d));
+
     const sec = (title, arr, fn) => arr.length ? `<div class="text-[11px] font-semibold text-slate-400 pt-1">${title}</div>` + arr.map(fn).join('') : '';
-    const bar = inc.map(reqRow).join('') + now.filter(duMine).map(duelRow).join('') + done.filter(duMine).map(duelRow).join('');
-    $('duelBar').innerHTML = bar; $('duelBar').classList.toggle('hidden', !bar);
-    $('duelList').innerHTML = sec('Requests for you', inc, reqRow) + sec('Sent', out, outRow) + sec('In duel today', now, duelRow) + sec('Scheduled', up, duelRow) + sec('Duel finished (up to 12h)', done, duelRow)
+    const bar = inc.map(reqRow).join('') + activeToday.filter(duMine).map(duelRow).join('') + done.filter(duMine).map(duelRow).join('');
+    $('duelBar').innerHTML = bar;
+    $('duelBar').classList.toggle('hidden', !bar);
+    $('duelList').innerHTML =
+      sec('Requests for you', inc, reqRow) +
+      sec('Sent', out, outRow) +
+      sec('In duel today', activeToday, duelRow) +
+      sec('Scheduled', up, duelRow) +
+      sec('Duel finished', done, duelRow)
       || '<p class="text-xs text-slate-500 text-center py-2">No duels yet. Challenge someone!</p>';
-    $('roomDuels').innerHTML = now.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + now.map(duelRow).join('') : '';
-    renderRoom(); renderLB();
+    $('roomDuels').innerHTML = activeToday.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + activeToday.map(duelRow).join('') : '';
+    renderRoom();
+    renderLB();
   }
+
   document.querySelectorAll('[data-dt]').forEach(sp => {
     const [id, s] = sp.dataset.dt.split(':'), d = DU.find(x => x.id === id);
-    if (d) { const v = duTime(d, s); if (sp.textContent !== v) sp.textContent = v; }
+    if (d) {
+      const v = duTime(d, s);
+      if (sp.textContent !== v) sp.textContent = v;
+    }
   });
 }
+
 async function duelsLoad() {
   if (!user || !navigator.onLine || duelBusy) return;
   duelBusy = true; duelLast = Date.now();
   try {
-    const since = toYMD(addDays(logicalNow(), -2));
+    const since = yesterdayK();
     const { data, error } = await sb.from('duels').select('*').gte('duel_date', since).order('created_at', { ascending: false }).limit(200);
     if (error) { console.error('duels', error); return; }
     DU = data || [];
     for (const d of DU) {
-      if (d.status === 'accepted' && d.duel_date === yesterdayK() && duMine(d)) {
-        const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
-        const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
+      if (d.status === 'accepted' && duMine(d)) {
+        const cFinStr = getFinMarker(d, 'c');
+        const oFinStr = getFinMarker(d, 'o');
+        const cFin = cFinStr && !isNaN(new Date(cFinStr).getTime()) ? new Date(cFinStr).getTime() : 0;
+        const oFin = oFinStr && !isNaN(new Date(oFinStr).getTime()) ? new Date(oFinStr).getTime() : 0;
         if (cFin && oFin && !d.settled_at) {
           const setIso = new Date(Math.max(cFin, oFin)).toISOString();
           const { error: eUp } = await sb.from('duels').update({ settled_at: setIso }).eq('id', d.id);
@@ -1903,34 +1971,66 @@ async function duelsLoad() {
   } catch (e) { console.error('duels', e); }
   finally { duelBusy = false; }
 }
+
 async function duelsPush() {
   const t = todayK();
   for (const d of DU) {
     if (d.status !== 'accepted' || !duMine(d) || d.duel_date !== t) continue;
-    const col = d.challenger_id === user.id ? 'challenger_secs' : 'opponent_secs', v = Math.round(myStopSecs(d.duel_date));
+    const isC = d.challenger_id === user.id;
+    const side = isC ? 'c' : 'o';
+    if (getFinMarker(d, side)) continue;
+    const col = isC ? 'challenger_secs' : 'opponent_secs', v = Math.round(myStopSecs(d.duel_date));
     if (v === (+d[col] || 0) || duelPushed[d.id + col] === v) continue;
     duelPushed[d.id + col] = v;
     const { error } = await sb.from('duels').update({ [col]: v }).eq('id', d.id);
     if (error) { console.error('duel push', error); delete duelPushed[d.id + col]; } else d[col] = v;
   }
 }
+
 async function duelsMarkFinished() {
   if (!user || !navigator.onLine) return;
   const nowIso = new Date().toISOString();
   for (const d of DU) {
     if (d.status !== 'accepted' || !duMine(d)) continue;
     const isC = d.challenger_id === user.id;
+    const side = isC ? 'c' : 'o';
+    const otherSide = isC ? 'o' : 'c';
     const finCol = isC ? 'challenger_finished_at' : 'opponent_finished_at';
     const secCol = isC ? 'challenger_secs' : 'opponent_secs';
-    const secs = Math.round(myStopSecs(d.duel_date));
-    const otherFin = isC ? d.opponent_finished_at : d.challenger_finished_at;
-    const patch = { [secCol]: secs, [finCol]: nowIso };
-    if (otherFin && !d.settled_at) patch.settled_at = nowIso;
-    const { error } = await sb.from('duels').update(patch).eq('id', d.id);
-    if (!error) Object.assign(d, patch);
+    const liveSecs = Math.round(myStopSecs(d.duel_date));
+    const secs = Math.max(+d[secCol] || 0, liveSecs);
+    const otherFin = getFinMarker(d, otherSide);
+    const finVal = d[finCol] || nowIso;
+
+    // Optimistically update local object first so UI updates immediately even if optional DB columns don't exist
+    d[secCol] = secs;
+    d[finCol] = finVal;
+    d.finished_by = Object.assign({}, d.finished_by || {}, { [side]: finVal });
+    if (otherFin && !d.settled_at) d.settled_at = nowIso;
+
+    // 1) Update seconds (always exists in duels table)
+    const { error: eSec } = await sb.from('duels').update({ [secCol]: secs }).eq('id', d.id);
+    if (eSec) console.error('duel secs update', eSec);
+
+    // 2) Try updating finished_at & settled_at columns if present in schema
+    const finPatch = { [finCol]: finVal };
+    if (otherFin && !d.settled_at) finPatch.settled_at = nowIso;
+    const { error: eFin } = await sb.from('duels').update(finPatch).eq('id', d.id);
+
+    // 3) Fallback if finished_at columns are not in DB schema: store in finished_by jsonb or log
+    if (eFin) {
+      const mergedFb = Object.assign({}, d.finished_by || {}, { [side]: finVal });
+      const { error: eFb } = await sb.from('duels').update({ finished_by: mergedFb }).eq('id', d.id);
+      if (eFb) {
+        console.warn('Could not persist finished_at/finished_by in DB, using local state:', eFin.message);
+      }
+    }
   }
   duSig = ''; duelsRender();
+  await duelsLoad();
+  duSig = ''; duelsRender();
 }
+
 async function duelUsers() {
   if (!user || !navigator.onLine) return;
   const { data, error } = await sb.from('leaderboard').select('user_id,username,streak').neq('user_id', user.id).order('username').limit(500);
@@ -1940,11 +2040,13 @@ async function duelUsers() {
   e.innerHTML = '<option value="">Choose a person…</option>' + duelUsersList.map(u => `<option value="${esc(u.user_id)}">${esc(u.username)} · ${u.streak || 0}d</option>`).join('');
   if (v && [...e.options].some(o => o.value === v)) e.value = v;
 }
+
 function duelFillDays() {
   const e = $('duelDay'); if (!e) return; const v = e.value || '0';
   e.innerHTML = [0, 1, 2, 3].map(i => `<option value="${i}">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : 'In ' + i + ' days'} · ${fmt(addDays(logicalNow(), i))}</option>`).join('');
   e.value = v;
 }
+
 async function duelSend() {
   if (!user) return;
   if (!navigator.onLine) return alert('You need to be online to send a duel.');
@@ -1958,6 +2060,7 @@ async function duelSend() {
   alert('Duel request sent to ' + u.username + '.');
   duelsLoad();
 }
+
 async function duelAnswer(id, ok) {
   const d = DU.find(x => x.id === id); if (!d) return;
   if (!navigator.onLine) return alert('You need to be online.');
@@ -1967,6 +2070,7 @@ async function duelAnswer(id, ok) {
   if (error) return alert('Error: ' + error.message);
   duelsLoad();
 }
+
 async function duelDel(id) {
   const d = DU.find(x => x.id === id); if (!d) return;
   if (!confirm(d.status === 'accepted' ? 'Cancel this duel for both of you?' : 'Cancel this request?')) return;
