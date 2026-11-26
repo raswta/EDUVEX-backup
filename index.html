@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261126-7">
+<meta name="build" content="20261126-8">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -398,7 +398,7 @@ html[data-theme] .via-indigo-500{--tw-gradient-stops:var(--tw-gradient-from),var
 </main>
 
 <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-400">
-  Made by <a href="https://raswta.carrd.co" target="_blank" class="text-blue-400 font-semibold">raswta</a> · v7
+  Made by <a href="https://raswta.carrd.co" target="_blank" class="text-blue-400 font-semibold">raswta</a> · v8
 </footer>
 
 <div id="focus" class="hidden fixed inset-0 z-[45] bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6 gap-6 sm:gap-8">
@@ -1762,7 +1762,20 @@ function duShown(d) {
   if (d.status === 'pending' && d.duel_date >= todayK() && duMine(d)) return true;
   if (d.status !== 'accepted') return false;
   if (d.duel_date >= todayK()) return true;
-  if (d.duel_date === yesterdayK()) return yesterdaySettlement(d).show;
+  if (d.duel_date < todayK()) {
+    if (d.duel_date === yesterdayK()) {
+      const st = yesterdaySettlement(d);
+      if (st.show) return true;
+    }
+    const a = +d.challenger_secs || 0, b = +d.opponent_secs || 0;
+    const finishedTs = Math.max(
+      d.settled_at ? new Date(d.settled_at).getTime() : 0,
+      d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0,
+      d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0,
+      threeAmAfterDate(d.duel_date)
+    );
+    return (Date.now() - finishedTs) < DUEL_RESULT_MS || (a > 0 || b > 0);
+  }
   return false;
 }
 
@@ -1804,7 +1817,7 @@ function duelRow(d) {
   const winName = lead === 'c' ? d.challenger_name : lead === 'o' ? d.opponent_name : '';
   const winSecs = lead === 'c' ? aSecs : lead === 'o' ? bSecs : 0;
   const st = over ? yesterdaySettlement(d) : null;
-  const hrsLeft = st ? Math.max(1, Math.ceil(st.remainingMs / 3600e3)) : 0;
+  const hrsLeft = st && st.remainingMs > 0 ? Math.max(1, Math.ceil(st.remainingMs / 3600e3)) : 0;
 
   const side = (s, name, id) => {
     const isWinner = over && lead === s;
@@ -1825,8 +1838,8 @@ function duelRow(d) {
 
   const tag = future ? `📅 Scheduled · ${fmtY(ymd(d.duel_date))}`
     : over ? (lead
-      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)}) · ${hrsLeft}h left`
-      : `🏁 Duel finished · Draw (${hms(aSecs)}) · ${hrsLeft}h left`)
+      ? `🏁 Duel finished · Winner: ${esc(winName)} (${hms(winSecs)})${hrsLeft ? ` · ${hrsLeft}h left` : ''}`
+      : `🏁 Duel finished · Draw (${hms(aSecs)})${hrsLeft ? ` · ${hrsLeft}h left` : ''}`)
     : '⚔️ In duel';
 
   return `<div class="rounded-xl border-2 ${mine && !over ? 'border-rose-500/60' : over ? 'border-amber-500/50' : 'border-slate-800'} bg-slate-950 p-2.5 text-xs space-y-1.5">
@@ -1867,7 +1880,7 @@ async function duelsLoad() {
   if (!user || !navigator.onLine || duelBusy) return;
   duelBusy = true; duelLast = Date.now();
   try {
-    const since = yesterdayK();
+    const since = toYMD(addDays(logicalNow(), -2));
     const { data, error } = await sb.from('duels').select('*').gte('duel_date', since).order('created_at', { ascending: false }).limit(200);
     if (error) { console.error('duels', error); return; }
     DU = data || [];
