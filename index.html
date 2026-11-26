@@ -1716,17 +1716,41 @@ const yesterdayK = () => toYMD(addDays(logicalNow(), -1));
 const uname = () => user.email.split('@')[0];
 const duMine = d => !!user && (d.challenger_id === user.id || d.opponent_id === user.id);
 
+const localFinKey = () => user ? ('ev_duel_fin_' + user.id) : 'ev_duel_fin_anon';
+function getLocalFinMap() { return LS(localFinKey(), {}); }
+function setLocalFin(duelId, side, isoVal) {
+  const m = getLocalFinMap();
+  if (!m[duelId]) m[duelId] = {};
+  m[duelId][side] = isoVal || new Date().toISOString();
+  localStorage.setItem(localFinKey(), JSON.stringify(m));
+}
+
 function threeAmAfterDate(dateStr) {
   const [y, m, day] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, day + 1, DAY_CUT, 0, 0, 0).getTime();
 }
 
+function getFinMarker(d, side) {
+  if (!d) return '';
+  const col = side === 'c' ? 'challenger_finished_at' : 'opponent_finished_at';
+  if (d[col]) return d[col];
+  if (d.finished_by && d.finished_by[side]) return d.finished_by[side];
+  const loc = getLocalFinMap()[d.id];
+  if (loc && loc[side]) return loc[side];
+  return '';
+}
+
 function duelBothFinished(d) {
-  return !!(d && d.challenger_finished_at && d.opponent_finished_at);
+  if (!d) return false;
+  // If user is in the duel and finished their side, or both sides have finish markers
+  const cDone = !!getFinMarker(d, 'c');
+  const oDone = !!getFinMarker(d, 'o');
+  return cDone && oDone;
 }
 
 function isDuelFinished(d) {
   if (!d || d.status !== 'accepted') return false;
+  if (d.status === 'finished') return true;
   const t = todayK();
   if (d.duel_date < t) return true;
   if (d.duel_date === t && duelBothFinished(d)) return true;
@@ -1747,9 +1771,11 @@ function yesterdaySettlement(d) {
   const threeAm = threeAmAfterDate(d.duel_date);
   const bothStudying = isStudyingNow(d.challenger_id) && isStudyingNow(d.opponent_id);
 
-  const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
-  const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
-  const bothFinished = !!cFin && !!oFin;
+  const cFinStr = getFinMarker(d, 'c');
+  const oFinStr = getFinMarker(d, 'o');
+  const cFin = cFinStr && !isNaN(new Date(cFinStr).getTime()) ? new Date(cFinStr).getTime() : 0;
+  const oFin = oFinStr && !isNaN(new Date(oFinStr).getTime()) ? new Date(oFinStr).getTime() : 0;
+  const bothFinished = !!(cFin && oFin);
 
   let settledAt = threeAm;
   let settled = false;
@@ -1792,9 +1818,9 @@ function myStopSecs(key) {
 function duSecs(d, side) {
   const isC = side === 'c';
   const uid = isC ? d.challenger_id : d.opponent_id;
-  const finAt = isC ? d.challenger_finished_at : d.opponent_finished_at;
+  const finMarker = getFinMarker(d, side);
   const saved = +d[isC ? 'challenger_secs' : 'opponent_secs'] || 0;
-  if (user && uid === user.id && d.duel_date === todayK() && !finAt) {
+  if (user && uid === user.id && d.duel_date === todayK() && !finMarker) {
     return Math.max(saved, myStopSecs(d.duel_date));
   }
   return saved;
@@ -1936,11 +1962,21 @@ async function duelsLoad() {
     const since = yesterdayK();
     const { data, error } = await sb.from('duels').select('*').gte('duel_date', since).order('created_at', { ascending: false }).limit(200);
     if (error) { console.error('duels', error); return; }
-    DU = data || [];
+    const locMap = getLocalFinMap();
+    DU = (data || []).map(d => {
+      const lm = locMap[d.id];
+      if (lm) {
+        if (lm.c && !d.challenger_finished_at) d.challenger_finished_at = lm.c;
+        if (lm.o && !d.opponent_finished_at) d.opponent_finished_at = lm.o;
+      }
+      return d;
+    });
     for (const d of DU) {
       if (d.status === 'accepted' && duMine(d)) {
-        const cFin = d.challenger_finished_at ? new Date(d.challenger_finished_at).getTime() : 0;
-        const oFin = d.opponent_finished_at ? new Date(d.opponent_finished_at).getTime() : 0;
+        const cFinStr = getFinMarker(d, 'c');
+        const oFinStr = getFinMarker(d, 'o');
+        const cFin = cFinStr && !isNaN(new Date(cFinStr).getTime()) ? new Date(cFinStr).getTime() : 0;
+        const oFin = oFinStr && !isNaN(new Date(oFinStr).getTime()) ? new Date(oFinStr).getTime() : 0;
         if (cFin && oFin && !d.settled_at) {
           const setIso = new Date(Math.max(cFin, oFin)).toISOString();
           const { error: eUp } = await sb.from('duels').update({ settled_at: setIso }).eq('id', d.id);
@@ -1962,7 +1998,8 @@ async function duelsPush() {
   for (const d of DU) {
     if (d.status !== 'accepted' || !duMine(d) || d.duel_date !== t) continue;
     const isC = d.challenger_id === user.id;
-    if (isC ? d.challenger_finished_at : d.opponent_finished_at) continue;
+    const side = isC ? 'c' : 'o';
+    if (getFinMarker(d, side)) continue;
     const col = isC ? 'challenger_secs' : 'opponent_secs', v = Math.round(myStopSecs(d.duel_date));
     if (v === (+d[col] || 0) || duelPushed[d.id + col] === v) continue;
     duelPushed[d.id + col] = v;
@@ -1972,23 +2009,46 @@ async function duelsPush() {
 }
 
 async function duelsMarkFinished() {
-  if (!user || !navigator.onLine) return;
+  if (!user) return;
   const nowIso = new Date().toISOString();
   for (const d of DU) {
     if (d.status !== 'accepted' || !duMine(d)) continue;
     const isC = d.challenger_id === user.id;
+    const side = isC ? 'c' : 'o';
+    const otherSide = isC ? 'o' : 'c';
     const finCol = isC ? 'challenger_finished_at' : 'opponent_finished_at';
     const secCol = isC ? 'challenger_secs' : 'opponent_secs';
     const liveSecs = Math.round(myStopSecs(d.duel_date));
     const secs = Math.max(+d[secCol] || 0, liveSecs);
-    const otherFin = isC ? d.opponent_finished_at : d.challenger_finished_at;
-    const patch = { [secCol]: secs, [finCol]: d[finCol] || nowIso };
-    if (otherFin && !d.settled_at) patch.settled_at = nowIso;
-    const { error } = await sb.from('duels').update(patch).eq('id', d.id);
-    if (!error) Object.assign(d, patch);
+    const otherFin = getFinMarker(d, otherSide);
+    const finVal = d[finCol] || nowIso;
+
+    // Persist locally first so it survives reload/refresh even if DB schema lacks columns
+    setLocalFin(d.id, side, finVal);
+    d[secCol] = secs;
+    d[finCol] = finVal;
+    d.finished_by = Object.assign({}, d.finished_by || {}, { [side]: finVal });
+    if (otherFin && !d.settled_at) d.settled_at = nowIso;
+
+    if (!navigator.onLine) continue;
+
+    const { error: eSec } = await sb.from('duels').update({ [secCol]: secs }).eq('id', d.id);
+    if (eSec) console.error('duel secs update', eSec);
+
+    const finPatch = { [finCol]: finVal };
+    if (otherFin && !d.settled_at) finPatch.settled_at = nowIso;
+    const { error: eFin } = await sb.from('duels').update(finPatch).eq('id', d.id);
+
+    if (eFin) {
+      const mergedFb = Object.assign({}, d.finished_by || {}, { [side]: finVal });
+      await sb.from('duels').update({ finished_by: mergedFb }).eq('id', d.id);
+    }
   }
   duSig = ''; duelsRender();
-  await duelsLoad();
+  if (navigator.onLine) {
+    await duelsLoad();
+    duSig = ''; duelsRender();
+  }
 }
 
 async function duelUsers() {
