@@ -1713,7 +1713,7 @@ const duelPushed = {};
 const DUEL_RESULT_MS = 12 * 3600e3;
 const todayK = () => dayKey(new Date());
 const yesterdayK = () => toYMD(addDays(logicalNow(), -1));
-const uname = () => user.email.split('@')[0];
+const uname = () => (user && user.email ? user.email.split('@')[0] : 'User');
 const duMine = d => !!user && (d.challenger_id === user.id || d.opponent_id === user.id);
 
 const localFinKey = () => user ? ('ev_duel_fin_' + user.id) : 'ev_duel_fin_anon';
@@ -1742,10 +1742,7 @@ function getFinMarker(d, side) {
 
 function duelBothFinished(d) {
   if (!d) return false;
-  // If user is in the duel and finished their side, or both sides have finish markers
-  const cDone = !!getFinMarker(d, 'c');
-  const oDone = !!getFinMarker(d, 'o');
-  return cDone && oDone;
+  return !!(getFinMarker(d, 'c') && getFinMarker(d, 'o'));
 }
 
 function isDuelFinished(d) {
@@ -1955,8 +1952,9 @@ function duelsRender() {
   });
 }
 
-async function duelsLoad() {
-  if (!user || !navigator.onLine || duelBusy) return;
+async function duelsLoad(force) {
+  if (!user || !navigator.onLine) return;
+  if (duelBusy && !force) return;
   duelBusy = true; duelLast = Date.now();
   try {
     const since = yesterdayK();
@@ -2023,7 +2021,6 @@ async function duelsMarkFinished() {
     const otherFin = getFinMarker(d, otherSide);
     const finVal = d[finCol] || nowIso;
 
-    // Persist locally first so it survives reload/refresh even if DB schema lacks columns
     setLocalFin(d.id, side, finVal);
     d[secCol] = secs;
     d[finCol] = finVal;
@@ -2046,17 +2043,18 @@ async function duelsMarkFinished() {
   }
   duSig = ''; duelsRender();
   if (navigator.onLine) {
-    await duelsLoad();
+    await duelsLoad(true);
     duSig = ''; duelsRender();
   }
 }
 
 async function duelUsers() {
   if (!user || !navigator.onLine) return;
+  const e = $('duelWho'); if (!e) return;
   const { data, error } = await sb.from('leaderboard').select('user_id,username,streak').neq('user_id', user.id).order('username').limit(500);
   if (error) return console.error('duel users', error);
   duelUsersList = data || [];
-  const e = $('duelWho'), v = e.value;
+  const v = e.value;
   e.innerHTML = '<option value="">Choose a person…</option>' + duelUsersList.map(u => `<option value="${esc(u.user_id)}">${esc(u.username)} · ${u.streak || 0}d</option>`).join('');
   if (v && [...e.options].some(o => o.value === v)) e.value = v;
 }
@@ -2070,15 +2068,20 @@ function duelFillDays() {
 async function duelSend() {
   if (!user) return;
   if (!navigator.onLine) return alert('You need to be online to send a duel.');
-  const who = $('duelWho').value; if (!who) return alert('Choose a person first.');
-  const u = duelUsersList.find(x => x.user_id === who); if (!u) return alert('Choose a person first.');
-  const date = toYMD(addDays(logicalNow(), +$('duelDay').value || 0));
+  const whoEl = $('duelWho'), dayEl = $('duelDay');
+  if (!whoEl || !dayEl) return alert('Duel form not ready.');
+  const who = whoEl.value;
+  if (!who) return alert('Choose a person first.');
+  const u = duelUsersList.find(x => String(x.user_id) === String(who));
+  const targetName = u ? u.username : (whoEl.selectedOptions[0] ? whoEl.selectedOptions[0].textContent.split(' · ')[0] : '');
+  const date = toYMD(addDays(logicalNow(), +dayEl.value || 0));
   if (DU.some(d => (d.status === 'pending' || d.status === 'accepted') && d.duel_date === date && ((d.challenger_id === user.id && d.opponent_id === who) || (d.challenger_id === who && d.opponent_id === user.id))))
     return alert('You already have a duel with this person on that day.');
-  const { error } = await sb.from('duels').insert({ challenger_id: user.id, challenger_name: uname(), opponent_id: who, opponent_name: u.username, duel_date: date, status: 'pending' });
+  const { error } = await sb.from('duels').insert({ challenger_id: user.id, challenger_name: uname(), opponent_id: who, opponent_name: targetName || 'Opponent', duel_date: date, status: 'pending' });
   if (error) return alert('Could not send the duel: ' + error.message);
-  alert('Duel request sent to ' + u.username + '.');
-  duelsLoad();
+  alert('Duel request sent to ' + (targetName || 'opponent') + '.');
+  duelBusy = false;
+  await duelsLoad(true);
 }
 
 async function duelAnswer(id, ok) {
@@ -2088,7 +2091,8 @@ async function duelAnswer(id, ok) {
     return alert('One of you already has a duel on that day. A person can be in one duel per day.');
   const { error } = await sb.from('duels').update({ status: ok ? 'accepted' : 'declined' }).eq('id', id);
   if (error) return alert('Error: ' + error.message);
-  duelsLoad();
+  duelBusy = false;
+  await duelsLoad(true);
 }
 
 async function duelDel(id) {
@@ -2096,7 +2100,8 @@ async function duelDel(id) {
   if (!confirm(d.status === 'accepted' ? 'Cancel this duel for both of you?' : 'Cancel this request?')) return;
   const { error } = await sb.from('duels').delete().eq('id', id);
   if (error) return alert('Error: ' + error.message);
-  duelsLoad();
+  duelBusy = false;
+  await duelsLoad(true);
 }
 
 // ---------- Room ----------
