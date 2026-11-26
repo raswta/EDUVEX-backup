@@ -1716,6 +1716,15 @@ const yesterdayK = () => toYMD(addDays(logicalNow(), -1));
 const uname = () => user.email.split('@')[0];
 const duMine = d => !!user && (d.challenger_id === user.id || d.opponent_id === user.id);
 
+const localFinKey = () => user ? ('ev_duel_fin_' + user.id) : 'ev_duel_fin_anon';
+function getLocalFinMap() { return LS(localFinKey(), {}); }
+function setLocalFin(duelId, side, isoVal) {
+  const m = getLocalFinMap();
+  if (!m[duelId]) m[duelId] = {};
+  m[duelId][side] = isoVal || new Date().toISOString();
+  localStorage.setItem(localFinKey(), JSON.stringify(m));
+}
+
 function threeAmAfterDate(dateStr) {
   const [y, m, day] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, day + 1, DAY_CUT, 0, 0, 0).getTime();
@@ -1725,13 +1734,17 @@ function getFinMarker(d, side) {
   if (!d) return '';
   const col = side === 'c' ? 'challenger_finished_at' : 'opponent_finished_at';
   if (d[col]) return d[col];
-  return (d.finished_by && d.finished_by[side]) || '';
+  if (d.finished_by && d.finished_by[side]) return d.finished_by[side];
+  const loc = getLocalFinMap()[d.id];
+  if (loc && loc[side]) return loc[side];
+  return '';
 }
 
 function duelBothFinished(d) {
   if (!d) return false;
-  const cDone = !!(d.challenger_finished_at || (d.finished_by && d.finished_by.c));
-  const oDone = !!(d.opponent_finished_at || (d.finished_by && d.finished_by.o));
+  // If user is in the duel and finished their side, or both sides have finish markers
+  const cDone = !!getFinMarker(d, 'c');
+  const oDone = !!getFinMarker(d, 'o');
   return cDone && oDone;
 }
 
@@ -1949,7 +1962,15 @@ async function duelsLoad() {
     const since = yesterdayK();
     const { data, error } = await sb.from('duels').select('*').gte('duel_date', since).order('created_at', { ascending: false }).limit(200);
     if (error) { console.error('duels', error); return; }
-    DU = data || [];
+    const locMap = getLocalFinMap();
+    DU = (data || []).map(d => {
+      const lm = locMap[d.id];
+      if (lm) {
+        if (lm.c && !d.challenger_finished_at) d.challenger_finished_at = lm.c;
+        if (lm.o && !d.opponent_finished_at) d.opponent_finished_at = lm.o;
+      }
+      return d;
+    });
     for (const d of DU) {
       if (d.status === 'accepted' && duMine(d)) {
         const cFinStr = getFinMarker(d, 'c');
@@ -1988,7 +2009,7 @@ async function duelsPush() {
 }
 
 async function duelsMarkFinished() {
-  if (!user || !navigator.onLine) return;
+  if (!user) return;
   const nowIso = new Date().toISOString();
   for (const d of DU) {
     if (d.status !== 'accepted' || !duMine(d)) continue;
@@ -2002,33 +2023,32 @@ async function duelsMarkFinished() {
     const otherFin = getFinMarker(d, otherSide);
     const finVal = d[finCol] || nowIso;
 
-    // Optimistically update local object first so UI updates immediately even if optional DB columns don't exist
+    // Persist locally first so it survives reload/refresh even if DB schema lacks columns
+    setLocalFin(d.id, side, finVal);
     d[secCol] = secs;
     d[finCol] = finVal;
     d.finished_by = Object.assign({}, d.finished_by || {}, { [side]: finVal });
     if (otherFin && !d.settled_at) d.settled_at = nowIso;
 
-    // 1) Update seconds (always exists in duels table)
+    if (!navigator.onLine) continue;
+
     const { error: eSec } = await sb.from('duels').update({ [secCol]: secs }).eq('id', d.id);
     if (eSec) console.error('duel secs update', eSec);
 
-    // 2) Try updating finished_at & settled_at columns if present in schema
     const finPatch = { [finCol]: finVal };
     if (otherFin && !d.settled_at) finPatch.settled_at = nowIso;
     const { error: eFin } = await sb.from('duels').update(finPatch).eq('id', d.id);
 
-    // 3) Fallback if finished_at columns are not in DB schema: store in finished_by jsonb or log
     if (eFin) {
       const mergedFb = Object.assign({}, d.finished_by || {}, { [side]: finVal });
-      const { error: eFb } = await sb.from('duels').update({ finished_by: mergedFb }).eq('id', d.id);
-      if (eFb) {
-        console.warn('Could not persist finished_at/finished_by in DB, using local state:', eFin.message);
-      }
+      await sb.from('duels').update({ finished_by: mergedFb }).eq('id', d.id);
     }
   }
   duSig = ''; duelsRender();
-  await duelsLoad();
-  duSig = ''; duelsRender();
+  if (navigator.onLine) {
+    await duelsLoad();
+    duSig = ''; duelsRender();
+  }
 }
 
 async function duelUsers() {
