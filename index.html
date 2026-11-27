@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261126-7">
+<meta name="build" content="20261127-1">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -639,6 +639,7 @@ function tab(id) {
   if (id === 'testsTab') renderTests();
   if (id === 'todoTab') todoRender();
   if (id === 'moreTab') fillPeriods();
+  duSig = ''; duelsRender();
 }
 function status() {
   const on = navigator.onLine;
@@ -1854,7 +1855,20 @@ function duBadge(uid) {
   return di ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-rose-500/15 text-rose-300 whitespace-nowrap">${di.lead ? '🎖️ ' : ''}⚔️ In duel</span>` : '';
 }
 
-function duelRow(d) {
+// --- top-bar helpers (dismiss X, winner check, which tab is open) ---
+const duDis = () => LS('ev_duel_dis', []);
+function duelDismiss(id) {
+  const a = duDis();
+  if (!a.includes(id)) { a.push(id); localStorage.setItem('ev_duel_dis', JSON.stringify(a.slice(-100))); }
+  duSig = ''; duelsRender();
+}
+const duIWon = d => {
+  const l = leadOf(d);
+  return !!user && ((l === 'c' && d.challenger_id === user.id) || (l === 'o' && d.opponent_id === user.id));
+};
+const inRoomTab = () => !$('roomTab').classList.contains('hidden');
+
+function duelRow(d, bar) {
   const t = todayK();
   const future = d.duel_date > t;
   const over = isDuelFinished(d);
@@ -1893,6 +1907,7 @@ function duelRow(d) {
     <div class="flex items-center justify-between gap-2">
       <span class="text-[11px] font-semibold ${over ? 'text-amber-300' : 'text-rose-300'}">${tag}</span>
       ${mine && !over ? `<button onclick="duelDel('${d.id}')" class="text-slate-500 hover:text-red-400" title="Cancel duel"><i class="fa-solid fa-xmark"></i></button>` : ''}
+      ${bar === true && over ? `<button onclick="duelDismiss('${d.id}')" class="text-slate-400 hover:text-white" title="Close"><i class="fa-solid fa-xmark"></i></button>` : ''}
     </div>
     ${side('c', d.challenger_name, d.challenger_id)}
     ${side('o', d.opponent_name, d.opponent_id)}
@@ -1908,7 +1923,8 @@ const outRow = d => `<div class="rounded-xl border-2 border-slate-800 bg-slate-9
 function duelsRender() {
   if (!user) return;
   const t = todayK(), list = DU.filter(duShown);
-  const sig = t + '|' + list.map(d => [
+  const room = inRoomTab(), dis = duDis();
+  const sig = t + '|' + (room ? 1 : 0) + '|' + dis.length + '|' + list.map(d => [
     d.id,
     d.status,
     isDuelFinished(d) ? 1 : 0,
@@ -1927,8 +1943,13 @@ function duelsRender() {
     const up = acc.filter(d => d.duel_date > t);
     const done = acc.filter(d => isDuelFinished(d));
 
-    const sec = (title, arr, fn) => arr.length ? `<div class="text-[11px] font-semibold text-slate-400 pt-1">${title}</div>` + arr.map(fn).join('') : '';
-    const bar = inc.map(reqRow).join('') + activeToday.filter(duMine).map(duelRow).join('') + done.filter(duMine).map(duelRow).join('');
+    const sec = (title, arr, fn) => arr.length ? `<div class="text-[11px] font-semibold text-slate-400 pt-1">${title}</div>` + arr.map(x => fn(x)).join('') : '';
+    // Top bar: requests only in Study Room tab; "in duel" bar only for the two duelists;
+    // finished result: Study Room tab for both, other tabs only for the winner; X hides it.
+    const bar =
+      (room ? inc.map(reqRow).join('') : '') +
+      activeToday.filter(duMine).map(d => duelRow(d, true)).join('') +
+      done.filter(d => duMine(d) && !dis.includes(d.id) && (room || duIWon(d))).map(d => duelRow(d, true)).join('');
     $('duelBar').innerHTML = bar;
     $('duelBar').classList.toggle('hidden', !bar);
     $('duelList').innerHTML =
@@ -1938,7 +1959,7 @@ function duelsRender() {
       sec('Scheduled', up, duelRow) +
       sec('Duel finished', done, duelRow)
       || '<p class="text-xs text-slate-500 text-center py-2">No duels yet. Challenge someone!</p>';
-    $('roomDuels').innerHTML = activeToday.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + activeToday.map(duelRow).join('') : '';
+    $('roomDuels').innerHTML = activeToday.length ? `<div class="text-[11px] font-semibold text-rose-300">⚔️ In duel</div>` + activeToday.map(x => duelRow(x)).join('') : '';
     renderRoom();
     renderLB();
   }
