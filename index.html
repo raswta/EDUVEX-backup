@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EDUVEX - Live Study Planner</title>
-<meta name="build" content="20261127-4">
+<meta name="build" content="20261127-5">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
@@ -2169,7 +2169,24 @@ async function duelsPush() {
     if (d.status !== 'accepted' || !duMine(d) || d.duel_date !== t) continue;
     const isC = d.challenger_id === user.id;
     const side = isC ? 'c' : 'o';
-    if (getFinMarker(d, side)) continue;
+    if (getFinMarker(d, side)) {
+      // Stale "finished" mark (e.g. set by an old auto-save with 0 seconds) while I am studying now: reopen my side.
+      if (!(running || base > 0)) continue;
+      const finCol = isC ? 'challenger_finished_at' : 'opponent_finished_at';
+      try {
+        const m = getLocalFinMap();
+        if (m[d.id]) { delete m[d.id][side]; localStorage.setItem(localFinKey(), JSON.stringify(m)); }
+      } catch (e) {}
+      d[finCol] = null;
+      if (d.finished_by) { d.finished_by = Object.assign({}, d.finished_by); delete d.finished_by[side]; }
+      if (navigator.onLine) {
+        const { error: eR } = await sb.from('duels').update({ [finCol]: null, settled_at: null }).eq('id', d.id);
+        if (eR) console.error('duel reopen', eR);
+        if (d.finished_by) await sb.from('duels').update({ finished_by: d.finished_by }).eq('id', d.id);
+      }
+      d.settled_at = null;
+      if (getFinMarker(d, side)) continue;
+    }
     const col = isC ? 'challenger_secs' : 'opponent_secs', v = Math.round(myStopSecs(d.duel_date));
     if (v === (+d[col] || 0) || duelPushed[d.id + col] === v) continue;
     duelPushed[d.id + col] = v;
